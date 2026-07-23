@@ -25,10 +25,10 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore src/FastAction/FastAction.csproj -p:Platform=${{ matrix.platform }}
+        run: dotnet restore src/FastAction/FastAction.csproj -p:Platform=${{ matrix.platform }} -r win-${{ matrix.platform }}
 
       - name: Build
-        run: dotnet build src/FastAction/FastAction.csproj -c Release -p:Platform=${{ matrix.platform }} --no-restore
+        run: dotnet build src/FastAction/FastAction.csproj -c Release -p:Platform=${{ matrix.platform }} -r win-${{ matrix.platform }} --no-restore
 
   dotnet-format:
     name: Lint (dotnet format)
