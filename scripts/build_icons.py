@@ -1,9 +1,17 @@
+"""Regenerate FastAction's app icon and Windows logo assets from the brand mark.
+
+Run after updating `src/FastAction/Assets/Brand/mark-*.png`:
+
+    python scripts/build_icons.py
+"""
+
 from pathlib import Path
 
 from PIL import Image
 
-brand = Path(r"c:\workspace\fast-action\src\FastAction\Assets\Brand")
-assets = Path(r"c:\workspace\fast-action\src\FastAction\Assets")
+repo_root = Path(__file__).resolve().parent.parent
+brand = repo_root / "src" / "FastAction" / "Assets" / "Brand"
+assets = repo_root / "src" / "FastAction" / "Assets"
 
 src256 = Image.open(brand / "mark-256.png").convert("RGBA")
 sizes = {

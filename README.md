@@ -133,6 +133,15 @@ Browse names at [lucide.dev/icons](https://lucide.dev/icons). To refresh the bun
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\sync_lucide_icons.ps1
 ```
 
+### Regenerating the app icon / brand assets
+
+`AppIcon.ico`, the tray icon, and the Windows Store-style logos (`StoreLogo.png`, `Square44x44Logo.*`, `SplashScreen.*`, etc.) are all generated from the source marks in `src/FastAction/Assets/Brand/`. After changing a `mark-*.png`, regenerate everything with:
+
+```powershell
+pip install -r scripts/requirements.txt
+python scripts/build_icons.py
+```
+
 ## Project layout
 
 ```
