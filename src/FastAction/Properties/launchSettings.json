@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "FastAction (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "FastAction (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

@@ -1,0 +1,170 @@
+hotkey:
+  modifiers: [Win, Shift]
+  key: Space
+rootGridId: home
+editOnRightClick: true
+grids:
+  - id: home
+    title: Home
+    items:
+      # 3x3 core
+      - key: Q
+        name: Notepad
+        icon:
+          type: app
+          path: notepad.exe
+        action:
+          type: shell
+          command: notepad.exe
+      - key: W
+        name: Dev tools
+        icon:
+          type: lucide
+          name: wrench
+        action:
+          type: grid
+          gridId: devtools
+      - key: E
+        name: Explorer
+        icon:
+          type: lucide
+          name: folder
+        action:
+          type: hotkey
+          modifiers: [Win]
+          key: E
+      - key: A
+        name: Terminal
+        icon:
+          type: lucide
+          name: terminal
+        action:
+          type: shell
+          command: wt.exe
+      - key: S
+        name: Settings
+        icon:
+          type: lucide
+          name: settings
+        action:
+          type: shell
+          command: "ms-settings:"
+      - key: D
+        name: Code
+        icon:
+          type: lucide
+          name: code
+        action:
+          type: shell
+          command: explorer.exe
+          args: [C:\workspace]
+      - key: Z
+        name: Calc
+        icon:
+          type: app
+          path: calc.exe
+        action:
+          type: shell
+          command: calc.exe
+      - key: X
+        name: GitHub
+        icon:
+          type: lucide
+          name: external-link
+        action:
+          type: shell
+          command: https://github.com
+      - key: C
+        name: Circle
+        icon:
+          type: lucide
+          name: circle
+        action:
+          type: shell
+          command: notepad.exe
+      # number row 1-3
+      - key: "1"
+        name: Slot 1
+        icon:
+          type: lucide
+          name: circle
+        action:
+          type: shell
+          command: notepad.exe
+      - key: "2"
+        name: Slot 2
+        icon:
+          type: lucide
+          name: circle
+        action:
+          type: shell
+          command: notepad.exe
+      - key: "3"
+        name: Slot 3
+        icon:
+          type: lucide
+          name: circle
+        action:
+          type: shell
+          command: notepad.exe
+      # 4th column
+      - key: "4"
+        name: Slot 4
+        icon:
+          type: lucide
+          name: circle
+        action:
+          type: shell
+          command: notepad.exe
+      - key: R
+        name: Run
+        icon:
+          type: lucide
+          name: terminal
+        action:
+          type: shell
+          command: wt.exe
+      - key: F
+        name: Files
+        icon:
+          type: lucide
+          name: folder
+        action:
+          type: shell
+          command: explorer.exe
+      - key: V
+        name: Cursor
+        icon:
+          type: lucide
+          name: code
+        action:
+          type: shell
+          command: cursor
+  - id: devtools
+    title: Dev tools
+    items:
+      - key: Q
+        name: Terminal
+        icon:
+          type: lucide
+          name: terminal
+        action:
+          type: shell
+          command: wt.exe
+      - key: W
+        name: Code folder
+        icon:
+          type: lucide
+          name: code
+        action:
+          type: shell
+          command: explorer.exe
+          args: [C:\workspace]
+      - key: E
+        name: External
+        icon:
+          type: lucide
+          name: external-link
+        action:
+          type: shell
+          command: https://github.com
