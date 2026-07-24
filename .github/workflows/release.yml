@@ -1,8 +1,14 @@
 name: Release
 
 # Builds a signed-free Windows installer for each tagged version, publishes
-# it as a GitHub Release, and (see winget.yml) submits it to the WinGet
-# community repository so it can be installed via `winget install`.
+# it as a GitHub Release, and submits it to the WinGet community repository
+# so it can be installed via `winget install`.
+#
+# The WinGet submission is a job in *this* workflow rather than a separate
+# workflow triggered by `release: published`: GitHub Actions does not fire
+# other workflows off events produced by the default GITHUB_TOKEN (to avoid
+# infinite loops), so a separate `release: published`-triggered workflow
+# would never actually run here.
 
 on:
   push:
@@ -107,3 +113,20 @@ jobs:
           files: dist/*.exe
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+  winget:
+    name: Publish to WinGet
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      # One-time setup required before this succeeds (see README.md
+      # "WinGet setup"): fork microsoft/winget-pkgs, add a classic PAT with
+      # public_repo scope as the WINGET_TOKEN secret, and manually submit
+      # the very first manifest with `wingetcreate new` (this action can
+      # only update an existing package, not create the first submission).
+      - uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Luttik.FastAction
+          installers-regex: '\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}

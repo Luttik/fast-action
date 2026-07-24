@@ -169,20 +169,25 @@ samples/config.example.yaml
 
 ## Releases & distribution
 
-Cutting a release is a single command:
+Releases are cut by pushing a `v*.*.*` tag. Two ways that happens:
 
-```powershell
-git tag v1.2.3
-git push origin v1.2.3
-```
+- **Automatically**: [.github/workflows/version-bump.yml](.github/workflows/version-bump.yml) bumps the minor version (`X.Y.Z` -> `X.(Y+1).0`) and pushes a new tag every time a PR is merged into `main`.
+- **Manually**, e.g. for a patch release:
+  ```powershell
+  git tag v1.2.3
+  git push origin v1.2.3
+  ```
 
-That triggers [.github/workflows/release.yml](.github/workflows/release.yml), which:
+Either way, the tag push triggers [.github/workflows/release.yml](.github/workflows/release.yml), which:
 
 1. Publishes a self-contained Release build (`dotnet publish`, currently `win-x64`; other `Platforms` in the csproj can be added to the build matrix later).
 2. Compiles it into `FastActionSetup-<version>-x64.exe` with [Inno Setup](https://jrsoftware.org/isinfo.php) (`installer/FastAction.iss`) — a normal Windows installer with a Start Menu shortcut, an optional "run at startup" task, and a proper uninstaller.
 3. Publishes a GitHub Release with that installer attached and auto-generated release notes.
+4. Opens a PR against the [WinGet Community Repository](https://github.com/microsoft/winget-pkgs) (via [winget-releaser](https://github.com/vedantmgoyal9/winget-releaser)) so `winget install Luttik.FastAction` picks up the new version automatically.
 
-[.github/workflows/winget.yml](.github/workflows/winget.yml) then fires on every published release and opens a PR against the [WinGet Community Repository](https://github.com/microsoft/winget-pkgs) (via [winget-releaser](https://github.com/vedantmgoyal9/winget-releaser)) so `winget install Luttik.FastAction` picks up the new version automatically. The installer is currently unsigned, so Windows SmartScreen may warn on first run until the file builds up reputation; see "Code signing" below if that becomes a priority.
+(The WinGet step lives in the same workflow rather than triggering off `release: published`, because GitHub Actions doesn't fire other workflows off events created by the default `GITHUB_TOKEN`.) The installer is currently unsigned, so Windows SmartScreen may warn on first run until the file builds up reputation; see "Code signing" below if that becomes a priority.
+
+**Status**: [v0.0.1](https://github.com/Luttik/fast-action/releases/tag/v0.0.1) is out. WinGet submission isn't live yet — see the setup checklist below.
 
 ### WinGet setup (one-time, manual)
 
@@ -193,13 +198,12 @@ That triggers [.github/workflows/release.yml](.github/workflows/release.yml), wh
    ```powershell
    gh secret set WINGET_TOKEN
    ```
-3. **Cut the first release** (`git tag v0.1.0 && git push origin v0.1.0`) so a real installer URL exists.
-4. **Submit the first manifest manually** — this one is interactive and can only be done once per package:
+3. **Submit the first manifest manually** — this one is interactive and can only be done once per package:
    ```powershell
    winget install Microsoft.WingetCreate
-   wingetcreate new "https://github.com/Luttik/fast-action/releases/download/v0.1.0/FastActionSetup-0.1.0-x64.exe"
+   wingetcreate new "https://github.com/Luttik/fast-action/releases/download/v0.0.1/FastActionSetup-0.0.1-x64.exe"
    ```
-   Follow the prompts (package identifier `Luttik.FastAction`, publisher `Luttik`, etc.) and let it open the PR against your fork. Once that PR is merged, every subsequent tagged release keeps WinGet in sync automatically via `winget.yml`.
+   Follow the prompts (package identifier `Luttik.FastAction`, publisher `Luttik`, etc.) and let it open the PR against your fork. Once that PR is merged, every subsequent tagged release keeps WinGet in sync automatically via the `winget` job in `release.yml`.
 
 ### Code signing
 
