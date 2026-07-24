@@ -45,10 +45,10 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Restore
-        run: dotnet restore src/FastAction/FastAction.csproj -p:Platform=${{ matrix.platform }} -r win-${{ matrix.platform }}
-
       - name: Publish (self-contained)
+        # No --no-restore here: PublishReadyToRun needs restore to run with
+        # the same -r/--self-contained flags so it pulls the RID-specific
+        # runtime packs, which a separate plain `dotnet restore` step won't do.
         run: >
           dotnet publish src/FastAction/FastAction.csproj
           -c Release
@@ -56,7 +56,6 @@ jobs:
           -r win-${{ matrix.platform }}
           --self-contained true
           -p:Version=${{ steps.version.outputs.version }}
-          --no-restore
           -o publish/${{ matrix.platform }}
 
       - name: Ensure Inno Setup is available
