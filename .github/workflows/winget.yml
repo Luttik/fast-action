@@ -1,0 +1,26 @@
+name: Publish to WinGet
+
+# Submits a PR to the WinGet Community Repository (microsoft/winget-pkgs)
+# for every published GitHub Release, so `winget install Luttik.FastAction`
+# stays up to date.
+#
+# One-time setup required before this works (see README.md "WinGet setup"):
+#   1. Fork https://github.com/microsoft/winget-pkgs into this account.
+#   2. Create a classic PAT with the `public_repo` scope and store it as the
+#      repository secret WINGET_TOKEN.
+#   3. Manually submit the very first manifest for the package (the action
+#      only *updates* an existing package, it can't create the first one).
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Luttik.FastAction
+          installers-regex: '\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}

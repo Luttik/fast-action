@@ -1,0 +1,110 @@
+name: Release
+
+# Builds a signed-free Windows installer for each tagged version, publishes
+# it as a GitHub Release, and (see winget.yml) submits it to the WinGet
+# community repository so it can be installed via `winget install`.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (X.Y.Z, no leading v). Only used for manual test runs; a GitHub Release is only created for tag pushes."
+        required: false
+        default: "0.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build installer (${{ matrix.platform }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}" -replace '^v', ''
+          } else {
+            $version = "${{ inputs.version }}"
+          }
+          Write-Output "Resolved version: $version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore src/FastAction/FastAction.csproj -p:Platform=${{ matrix.platform }} -r win-${{ matrix.platform }}
+
+      - name: Publish (self-contained)
+        run: >
+          dotnet publish src/FastAction/FastAction.csproj
+          -c Release
+          -p:Platform=${{ matrix.platform }}
+          -r win-${{ matrix.platform }}
+          --self-contained true
+          -p:Version=${{ steps.version.outputs.version }}
+          --no-restore
+          -o publish/${{ matrix.platform }}
+
+      - name: Ensure Inno Setup is available
+        shell: pwsh
+        run: |
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $isccPath)) {
+            Write-Output "Inno Setup not found, installing via winget..."
+            winget install --id JRSoftware.InnoSetup -e --scope machine --silent --accept-source-agreements --accept-package-agreements
+          }
+          if (-not (Test-Path $isccPath)) {
+            throw "Inno Setup install failed: $isccPath not found"
+          }
+
+      - name: Compile installer (Inno Setup)
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\FastAction.iss `
+            "/DMyAppVersion=${{ steps.version.outputs.version }}" `
+            "/DMyAppArch=${{ matrix.platform }}" `
+            "/DSourceDir=$PWD\publish\${{ matrix.platform }}" `
+            "/DOutputDir=$PWD\dist"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.platform }}
+          path: dist/*.exe
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: installer-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          generate_release_notes: true
+          fail_on_unmatched_files: true

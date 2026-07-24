@@ -1,6 +1,7 @@
 # Fast Action
 
 [![CI](https://github.com/Luttik/fast-action/actions/workflows/ci.yml/badge.svg)](https://github.com/Luttik/fast-action/actions/workflows/ci.yml)
+[![Release](https://github.com/Luttik/fast-action/actions/workflows/release.yml/badge.svg)](https://github.com/Luttik/fast-action/actions/workflows/release.yml)
 
 A PowerToys-inspired Windows keyboard overlay. Press a global hotkey to open a QWERTY-aligned action grid. Keys and clicks run shell commands or open nested grids.
 
@@ -10,9 +11,19 @@ A PowerToys-inspired Windows keyboard overlay. Press a global hotkey to open a Q
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - Windows App SDK runtime (bundled via self-contained build)
 
-## Run
+## Install
 
-It is **not** a Windows Store / installed app yet — you run the unpackaged build locally.
+Once the first release has gone through the one-time WinGet setup described in [Releases & distribution](#releases--distribution):
+
+```powershell
+winget install Luttik.FastAction
+```
+
+Until then, or if you'd rather grab it directly, download the latest `FastActionSetup-*.exe` from [Releases](https://github.com/Luttik/fast-action/releases) and run it — it's a normal per-user/per-machine installer (via Inno Setup) with a Start Menu shortcut, optional "run at startup", and a clean uninstaller. No separate .NET or Windows App SDK runtime install is required; the app is self-contained.
+
+## Run from source
+
+You can also build and run the unpackaged app directly.
 
 ```powershell
 cd c:\workspace\fast-action
@@ -41,6 +52,7 @@ The app starts in the system tray. Default hotkey: **Win+Shift+Space** (register
 - **Open overlay** — show the root grid
 - **Open config folder** — `%LOCALAPPDATA%\FastAction`
 - **Reload config** — re-read `config.yaml`
+- **Start with Windows** — toggle launching automatically at sign-in (checked by default)
 - **Exit**
 
 ## Config
@@ -51,6 +63,8 @@ On first launch the app copies an example config to:
 
 Edits are watched and reloaded live.
 
+`runOnStartup` (default `true`) is applied via a per-user `HKCU\...\CurrentVersion\Run` registry entry pointing at the currently running exe — the app isn't packaged/installed, so this stands in for the MSIX `StartupTask` API. It's kept in sync on every launch and whenever you flip **Start with Windows** in the tray menu or edit the config directly.
+
 ### Schema
 
 ```yaml
@@ -59,6 +73,7 @@ hotkey:
   key: Space                # Space, Tab, Enter, Esc, A–Z, 0–9, F1–F12
 rootGridId: home
 editOnRightClick: true      # right-click a tile to edit or clear it
+runOnStartup: true          # launch automatically at Windows sign-in
 grids:
   - id: home
     title: Home
@@ -151,6 +166,60 @@ src/FastAction/          WinUI 3 unpackaged tray app
   Models/                YAML models + QWERTY layout
 samples/config.example.yaml
 ```
+
+## Releases & distribution
+
+Cutting a release is a single command:
+
+```powershell
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+That triggers [.github/workflows/release.yml](.github/workflows/release.yml), which:
+
+1. Publishes a self-contained Release build (`dotnet publish`, currently `win-x64`; other `Platforms` in the csproj can be added to the build matrix later).
+2. Compiles it into `FastActionSetup-<version>-x64.exe` with [Inno Setup](https://jrsoftware.org/isinfo.php) (`installer/FastAction.iss`) — a normal Windows installer with a Start Menu shortcut, an optional "run at startup" task, and a proper uninstaller.
+3. Publishes a GitHub Release with that installer attached and auto-generated release notes.
+
+[.github/workflows/winget.yml](.github/workflows/winget.yml) then fires on every published release and opens a PR against the [WinGet Community Repository](https://github.com/microsoft/winget-pkgs) (via [winget-releaser](https://github.com/vedantmgoyal9/winget-releaser)) so `winget install Luttik.FastAction` picks up the new version automatically. The installer is currently unsigned, so Windows SmartScreen may warn on first run until the file builds up reputation; see "Code signing" below if that becomes a priority.
+
+### WinGet setup (one-time, manual)
+
+`winget-releaser` can only *update* a package that's already in `winget-pkgs` — it can't create the first submission. Before the automation can run end to end:
+
+1. **Fork `microsoft/winget-pkgs`** into this account — done: [Luttik/winget-pkgs](https://github.com/Luttik/winget-pkgs).
+2. **Create a classic GitHub PAT** with the `public_repo` scope ([new token link](https://github.com/settings/tokens/new)) and add it as a repository secret named `WINGET_TOKEN`:
+   ```powershell
+   gh secret set WINGET_TOKEN
+   ```
+3. **Cut the first release** (`git tag v0.1.0 && git push origin v0.1.0`) so a real installer URL exists.
+4. **Submit the first manifest manually** — this one is interactive and can only be done once per package:
+   ```powershell
+   winget install Microsoft.WingetCreate
+   wingetcreate new "https://github.com/Luttik/fast-action/releases/download/v0.1.0/FastActionSetup-0.1.0-x64.exe"
+   ```
+   Follow the prompts (package identifier `Luttik.FastAction`, publisher `Luttik`, etc.) and let it open the PR against your fork. Once that PR is merged, every subsequent tagged release keeps WinGet in sync automatically via `winget.yml`.
+
+### Code signing
+
+The installer ships unsigned today. Two low/no-cost options to reduce SmartScreen friction later:
+
+- [SignPath.io's free OSS program](https://signpath.io/pricing) — free code signing for open-source projects, integrates with GitHub Actions.
+- A low-cost OV certificate (e.g. Certum ~$25-30/yr) added as a GitHub secret and wired into the `release.yml` build step.
+
+Neither is required for WinGet distribution to work.
+
+### Microsoft Store (future work)
+
+The project already ships Store-ready assets (`Package.appxmanifest`, `StoreLogo.png`, tile logos) with a placeholder identity, but nothing is wired up yet. Getting there requires steps only the account owner can do:
+
+1. Create a [Microsoft Partner Center](https://partner.microsoft.com/dashboard) developer account (one-time fee + identity verification).
+2. Reserve the app name to get a real `Package/Identity/Name` and `Publisher` — update `Package.appxmanifest` with those values.
+3. Register an Azure AD app associated with the Partner Center account to get submission-API credentials (tenant ID, client ID, client secret).
+4. Add a CD job that builds an MSIX/MSIX bundle (`-p:WindowsPackageType=MSIX`) and submits it via the Microsoft Store submission API/CLI.
+
+Once published, `winget` also picks up the Store listing automatically via its `msstore` source — no extra WinGet-side work needed for that path.
 
 ## Development
 

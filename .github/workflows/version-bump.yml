@@ -1,0 +1,52 @@
+name: Version Bump
+
+# On every PR merged into main, bumps the minor version (X.Y.Z -> X.(Y+1).0)
+# and pushes it as a new tag. That tag push triggers release.yml, which
+# builds the installer and publishes a GitHub Release (and, in turn,
+# winget.yml keeps WinGet in sync).
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: version
+        run: |
+          latest="$(git tag -l 'v*.*.*' | sort -V | tail -n1)"
+          if [ -z "$latest" ]; then
+            new="v0.1.0"
+          else
+            ver="${latest#v}"
+            major="${ver%%.*}"
+            rest="${ver#*.}"
+            minor="${rest%%.*}"
+            new="v${major}.$((minor + 1)).0"
+          fi
+          echo "Latest tag: ${latest:-<none>}"
+          echo "New tag: $new"
+          echo "tag=$new" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
