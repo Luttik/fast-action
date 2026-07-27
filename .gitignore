@@ -34,3 +34,8 @@ Desktop.ini
 
 # Local config copies
 **/AppData/
+
+# Local secrets (never commit)
+.env
+.env.*
+!.env.example
