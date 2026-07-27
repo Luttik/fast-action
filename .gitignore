@@ -39,3 +39,6 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+
+# Local wingetcreate output (lives in microsoft/winget-pkgs, not here)
+manifests/

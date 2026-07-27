@@ -187,23 +187,17 @@ Either way, the tag push triggers [.github/workflows/release.yml](.github/workfl
 
 (The WinGet step lives in the same workflow rather than triggering off `release: published`, because GitHub Actions doesn't fire other workflows off events created by the default `GITHUB_TOKEN`.) The installer is currently unsigned, so Windows SmartScreen may warn on first run until the file builds up reputation; see "Code signing" below if that becomes a priority.
 
-**Status**: [v0.0.1](https://github.com/Luttik/fast-action/releases/tag/v0.0.1) is out. WinGet submission isn't live yet — see the setup checklist below.
+**Status**: [v0.0.1](https://github.com/Luttik/fast-action/releases/tag/v0.0.1) is out. First WinGet submission is open: [microsoft/winget-pkgs#408285](https://github.com/microsoft/winget-pkgs/pull/408285). Once that merges, `winget install Luttik.FastAction` works and later releases auto-update via `release.yml`.
 
 ### WinGet setup (one-time, manual)
 
-`winget-releaser` can only *update* a package that's already in `winget-pkgs` — it can't create the first submission. Before the automation can run end to end:
+`winget-releaser` can only *update* a package that's already in `winget-pkgs` — it can't create the first submission. Status:
 
-1. **Fork `microsoft/winget-pkgs`** into this account — done: [Luttik/winget-pkgs](https://github.com/Luttik/winget-pkgs).
-2. **Create a classic GitHub PAT** with the `public_repo` scope ([new token link](https://github.com/settings/tokens/new)) and add it as a repository secret named `WINGET_TOKEN`:
-   ```powershell
-   gh secret set WINGET_TOKEN
-   ```
-3. **Submit the first manifest manually** — this one is interactive and can only be done once per package:
-   ```powershell
-   winget install Microsoft.WingetCreate
-   wingetcreate new "https://github.com/Luttik/fast-action/releases/download/v0.0.1/FastActionSetup-0.0.1-x64.exe"
-   ```
-   Follow the prompts (package identifier `Luttik.FastAction`, publisher `Luttik`, etc.) and let it open the PR against your fork. Once that PR is merged, every subsequent tagged release keeps WinGet in sync automatically via the `winget` job in `release.yml`.
+1. **Fork `microsoft/winget-pkgs`** — done: [Luttik/winget-pkgs](https://github.com/Luttik/winget-pkgs).
+2. **Create a classic GitHub PAT** with the `public_repo` scope and store it as repo secret `WINGET_TOKEN` — done.
+3. **Submit the first manifest** — done / awaiting merge: [PR #408285](https://github.com/microsoft/winget-pkgs/pull/408285).
+
+After that PR merges, every subsequent tagged release keeps WinGet in sync automatically via the `winget` job in `release.yml`.
 
 ### Code signing
 
