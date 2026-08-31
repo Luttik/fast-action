@@ -52,11 +52,10 @@ public sealed class ConfigService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Initial config load failed, using embedded default: {ex.Message}");
+            Debug.WriteLine($"Initial config load failed, using shipped example: {ex.Message}");
             lock (_lock)
             {
-                _config = _deserializer.Deserialize<AppConfig>(DefaultYaml) ?? new AppConfig();
-                Validate(_config);
+                _config = LoadShippedExample();
             }
         }
 
@@ -188,6 +187,17 @@ public sealed class ConfigService : IDisposable
         ConfigChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void SetRunOnStartup(bool enabled)
+    {
+        lock (_lock)
+        {
+            _config.RunOnStartup = enabled;
+            SaveUnlocked();
+        }
+
+        ConfigChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void ClearItem(string gridId, string key)
     {
         key = KeyboardLayout.NormalizeKey(key);
@@ -216,6 +226,28 @@ public sealed class ConfigService : IDisposable
         File.Delete(tempPath);
     }
 
+    private static string ShippedExamplePath =>
+        Path.Combine(AppContext.BaseDirectory, "Assets", "config.example.yaml");
+
+    private static void EnsureShippedExampleExists()
+    {
+        if (!File.Exists(ShippedExamplePath))
+        {
+            throw new InvalidOperationException(
+                $"Shipped example config was not found at '{ShippedExamplePath}'.");
+        }
+    }
+
+    private AppConfig LoadShippedExample()
+    {
+        EnsureShippedExampleExists();
+        var yaml = File.ReadAllText(ShippedExamplePath);
+        var loaded = _deserializer.Deserialize<AppConfig>(yaml)
+            ?? throw new InvalidOperationException("Shipped example config was empty.");
+        Validate(loaded);
+        return loaded;
+    }
+
     private void EnsureDefaultConfig()
     {
         if (File.Exists(ConfigPath))
@@ -223,23 +255,8 @@ public sealed class ConfigService : IDisposable
             return;
         }
 
-        var exampleCandidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "Assets", "config.example.yaml"),
-            Path.Combine(AppContext.BaseDirectory, "config.example.yaml"),
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "samples", "config.example.yaml")),
-        };
-
-        foreach (var candidate in exampleCandidates)
-        {
-            if (File.Exists(candidate))
-            {
-                File.Copy(candidate, ConfigPath);
-                return;
-            }
-        }
-
-        File.WriteAllText(ConfigPath, DefaultYaml);
+        EnsureShippedExampleExists();
+        File.Copy(ShippedExamplePath, ConfigPath);
     }
 
     private void StartWatching()
@@ -333,60 +350,4 @@ public sealed class ConfigService : IDisposable
     {
         _watcher?.Dispose();
     }
-
-    private const string DefaultYaml = """
-        hotkey:
-          modifiers: [Win, Shift]
-          key: Space
-        rootGridId: home
-        editOnRightClick: true
-        grids:
-          - id: home
-            title: Home
-            items:
-              - key: Q
-                name: Notepad
-                icon:
-                  type: app
-                  path: notepad.exe
-                action:
-                  type: shell
-                  command: notepad.exe
-              - key: W
-                name: Dev tools
-                icon:
-                  type: lucide
-                  name: wrench
-                action:
-                  type: grid
-                  gridId: devtools
-              - key: E
-                name: Explorer
-                icon:
-                  type: lucide
-                  name: folder
-                action:
-                  type: hotkey
-                  modifiers: [Win]
-                  key: E
-          - id: devtools
-            title: Dev tools
-            items:
-              - key: Q
-                name: Terminal
-                icon:
-                  type: lucide
-                  name: terminal
-                action:
-                  type: shell
-                  command: wt.exe
-              - key: W
-                name: Explorer
-                icon:
-                  type: lucide
-                  name: folder
-                action:
-                  type: shell
-                  command: explorer.exe
-        """;
 }

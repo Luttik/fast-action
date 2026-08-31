@@ -10,13 +10,16 @@ public sealed partial class MainWindow : Window
 {
     private readonly ConfigService _configService;
     private readonly HotkeyService _hotkeyService;
+    private readonly StartupService _startupService;
     private OverlayWindow? _overlay;
     private TaskbarIcon? _trayIcon;
+    private ToggleMenuFlyoutItem? _startupMenuItem;
 
-    public MainWindow(ConfigService configService, HotkeyService hotkeyService)
+    public MainWindow(ConfigService configService, HotkeyService hotkeyService, StartupService startupService)
     {
         _configService = configService;
         _hotkeyService = hotkeyService;
+        _startupService = startupService;
 
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
@@ -53,6 +56,29 @@ public sealed partial class MainWindow : Window
                 ShowTrayFeedback("Config reload failed", ex.Message);
             }
         }));
+        flyout.Items.Add(new MenuFlyoutSeparator());
+
+        _startupMenuItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Start with Windows",
+            IsChecked = _configService.Config.RunOnStartup,
+        };
+        _startupMenuItem.Click += (_, _) =>
+        {
+            var enabled = _startupMenuItem.IsChecked;
+            try
+            {
+                _startupService.SetEnabled(enabled);
+                _configService.SetRunOnStartup(enabled);
+            }
+            catch (Exception ex)
+            {
+                _startupMenuItem.IsChecked = !enabled;
+                ShowTrayFeedback("Couldn’t update startup setting", ex.Message);
+            }
+        };
+        flyout.Items.Add(_startupMenuItem);
+
         flyout.Items.Add(new MenuFlyoutSeparator());
         flyout.Items.Add(CreateMenuItem("Exit", (_, _) =>
         {
@@ -129,6 +155,35 @@ public sealed partial class MainWindow : Window
     private void ApplyHotkeyFromConfig()
     {
         _hotkeyService.Apply(_configService.Config.Hotkey);
+    }
+
+    /// <summary>Syncs the Windows startup registration with config.yaml, in case the
+    /// exe path moved (rebuild) or the setting was edited outside the tray menu.</summary>
+    public void InitializeStartup()
+    {
+        ApplyStartupFromConfig();
+        _configService.ConfigChanged += (_, _) =>
+        {
+            DispatcherQueue.TryEnqueue(ApplyStartupFromConfig);
+        };
+    }
+
+    private void ApplyStartupFromConfig()
+    {
+        var enabled = _configService.Config.RunOnStartup;
+        try
+        {
+            _startupService.SetEnabled(enabled);
+        }
+        catch (Exception ex)
+        {
+            ShowTrayFeedback("Startup registration failed", ex.Message);
+        }
+
+        if (_startupMenuItem is not null)
+        {
+            _startupMenuItem.IsChecked = enabled;
+        }
     }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args) =>

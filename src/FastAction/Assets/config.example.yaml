@@ -3,6 +3,7 @@ hotkey:
   key: Space
 rootGridId: home
 editOnRightClick: true
+runOnStartup: true
 grids:
   - id: home
     title: Home

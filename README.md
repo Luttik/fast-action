@@ -19,7 +19,7 @@ Once the first release has gone through the one-time WinGet setup described in [
 winget install Luttik.FastAction
 ```
 
-Until then, or if you'd rather grab it directly, download the latest `FastActionSetup-*.exe` from [Releases](https://github.com/Luttik/fast-action/releases) and run it — it's a normal per-user/per-machine installer (via Inno Setup) with a Start Menu shortcut, optional "run at startup", and a clean uninstaller. No separate .NET or Windows App SDK runtime install is required; the app is self-contained.
+Until then, or if you'd rather grab it directly, download the latest `FastActionSetup-*.exe` from [Releases](https://github.com/Luttik/fast-action/releases) and run it — it's a normal per-user/per-machine installer (via Inno Setup) with a Start Menu shortcut, per-user startup registration (`HKCU\...\Run`), and a clean uninstaller. No separate .NET or Windows App SDK runtime install is required; the app is self-contained.
 
 ## Run from source
 
@@ -63,7 +63,7 @@ On first launch the app copies an example config to:
 
 Edits are watched and reloaded live.
 
-`runOnStartup` (default `true`) is applied via a per-user `HKCU\...\CurrentVersion\Run` registry entry pointing at the currently running exe — the app isn't packaged/installed, so this stands in for the MSIX `StartupTask` API. It's kept in sync on every launch and whenever you flip **Start with Windows** in the tray menu or edit the config directly.
+`runOnStartup` (default `true`) is applied via a per-user `HKCU\...\CurrentVersion\Run` registry entry. The installer writes that entry so silent installs (including WinGet) register startup even before the first launch; the running app then keeps the same value pointed at the current exe and in sync with this setting — on every launch, when you flip **Start with Windows** in the tray menu, or when you edit the config directly.
 
 ### Schema
 
@@ -164,7 +164,7 @@ src/FastAction/          WinUI 3 unpackaged tray app
   Overlay/               Acrylic keyboard grid overlay
   Services/              Config, hotkey, actions, icons, theme
   Models/                YAML models + QWERTY layout
-samples/config.example.yaml
+  Assets/config.example.yaml   shipped first-run template
 ```
 
 ## Releases & distribution
@@ -181,7 +181,7 @@ Releases are cut by pushing a `v*.*.*` tag. Two ways that happens:
 Either way, the tag push triggers [.github/workflows/release.yml](.github/workflows/release.yml), which:
 
 1. Publishes a self-contained Release build (`dotnet publish`, currently `win-x64`; other `Platforms` in the csproj can be added to the build matrix later).
-2. Compiles it into `FastActionSetup-<version>-x64.exe` with [Inno Setup](https://jrsoftware.org/isinfo.php) (`installer/FastAction.iss`) — a normal Windows installer with a Start Menu shortcut, an optional "run at startup" task, and a proper uninstaller.
+2. Compiles it into `FastActionSetup-<version>-x64.exe` with [Inno Setup](https://jrsoftware.org/isinfo.php) (`installer/FastAction.iss`) — a normal Windows installer with a Start Menu shortcut, per-user `HKCU\...\Run` startup registration, and a proper uninstaller.
 3. Publishes a GitHub Release with that installer attached and auto-generated release notes.
 4. Opens a PR against the [WinGet Community Repository](https://github.com/microsoft/winget-pkgs) (via [winget-releaser](https://github.com/vedantmgoyal9/winget-releaser)) so `winget install Luttik.FastAction` picks up the new version automatically.
 
