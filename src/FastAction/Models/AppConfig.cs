@@ -9,6 +9,9 @@ public sealed class AppConfig
     /// <summary>When true, right-click a tile to edit or clear its action.</summary>
     public bool EditOnRightClick { get; set; } = true;
 
+    /// <summary>When true, register the app to launch automatically at Windows sign-in.</summary>
+    public bool RunOnStartup { get; set; } = true;
+
     public List<GridConfig> Grids { get; set; } = [];
 }
 
