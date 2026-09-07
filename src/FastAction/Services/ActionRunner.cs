@@ -7,7 +7,7 @@ namespace FastAction.Services;
 
 public sealed class ActionRunner
 {
-    public bool TryRunShell(ActionConfig action, out string? error)
+    public static bool TryRunShell(ActionConfig action, out string? error)
     {
         error = null;
         if (!string.Equals(action.Type, "shell", StringComparison.OrdinalIgnoreCase))
@@ -59,7 +59,7 @@ public sealed class ActionRunner
         }
     }
 
-    public bool TryRunHotkey(ActionConfig action, out string? error)
+    public static bool TryRunHotkey(ActionConfig action, out string? error)
     {
         error = null;
         if (!string.Equals(action.Type, "hotkey", StringComparison.OrdinalIgnoreCase))

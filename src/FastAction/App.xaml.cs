@@ -13,7 +13,6 @@ public partial class App : Application
     private HotkeyService? _hotkeyService;
     private ThemeService? _themeService;
     private IconResolver? _iconResolver;
-    private StartupService? _startupService;
 
     public App()
     {
@@ -53,11 +52,9 @@ public partial class App : Application
             _hotkeyService = new HotkeyService(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
             _themeService = new ThemeService();
             _iconResolver = new IconResolver(_configService.ConfigDirectory);
-            _startupService = new StartupService();
-            var actionRunner = new ActionRunner();
 
-            _mainWindow = new MainWindow(_configService, _hotkeyService, _startupService);
-            _overlayWindow = new OverlayWindow(_configService, actionRunner, _iconResolver, _themeService);
+            _mainWindow = new MainWindow(_configService, _hotkeyService, _themeService);
+            _overlayWindow = new OverlayWindow(_configService, _iconResolver, _themeService);
 
             _mainWindow.AttachOverlay(_overlayWindow);
             _mainWindow.Activate();
@@ -87,7 +84,7 @@ public partial class App : Application
             _mainWindow ??= new MainWindow(
                 _configService ?? new ConfigService(),
                 _hotkeyService ?? new HotkeyService(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()),
-                _startupService ?? new StartupService());
+                _themeService);
             _mainWindow.Activate();
         }
     }

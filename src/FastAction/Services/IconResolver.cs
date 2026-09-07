@@ -13,10 +13,16 @@ public sealed class IconResolver
 {
     private readonly Dictionary<string, ImageSource> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _configDirectory;
+    private volatile bool _isDarkMode;
 
     public IconResolver(string configDirectory)
     {
         _configDirectory = configDirectory;
+    }
+
+    public void SetDarkMode(bool isDarkMode)
+    {
+        _isDarkMode = isDarkMode;
     }
 
     public async Task<ImageSource?> ResolveAsync(IconConfig? icon)
@@ -27,7 +33,7 @@ public sealed class IconResolver
         }
 
         var type = string.IsNullOrWhiteSpace(icon.Type) ? "lucide" : icon.Type;
-        var cacheKey = $"{type}|{icon.Path}|{icon.Name}";
+        var cacheKey = $"{type}|{icon.Path}|{icon.Name}|{(_isDarkMode ? "dark" : "light")}";
         if (_cache.TryGetValue(cacheKey, out var cached))
         {
             return cached;
@@ -51,7 +57,7 @@ public sealed class IconResolver
 
     public void ClearCache() => _cache.Clear();
 
-    private static async Task<ImageSource?> ResolveLucideAsync(string? name)
+    private async Task<ImageSource?> ResolveLucideAsync(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -65,7 +71,20 @@ public sealed class IconResolver
         }
 
         // Unpackaged WinUI: prefer a real file path over ms-appx (more reliable).
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", "lucide", fileName);
+        var baseDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", "lucide");
+        var path = Path.Combine(baseDir, fileName);
+
+        // Optional dark-mode variant: e.g. `laptop-dark.svg`.
+        if (_isDarkMode)
+        {
+            var darkFileName = $"{Path.GetFileNameWithoutExtension(fileName)}-dark.svg";
+            var darkPath = Path.Combine(baseDir, darkFileName);
+            if (File.Exists(darkPath))
+            {
+                path = darkPath;
+            }
+        }
+
         if (!File.Exists(path))
         {
             Debug.WriteLine($"Lucide icon missing: {path}");

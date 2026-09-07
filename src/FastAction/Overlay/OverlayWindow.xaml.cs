@@ -17,7 +17,6 @@ namespace FastAction.Overlay;
 public sealed partial class OverlayWindow : Window
 {
     private readonly ConfigService _configService;
-    private readonly ActionRunner _actionRunner;
     private readonly IconResolver _iconResolver;
     private readonly ThemeService _themeService;
     private readonly WindowsSystemDispatcherQueueHelper _dispatcherQueueHelper = new();
@@ -39,12 +38,10 @@ public sealed partial class OverlayWindow : Window
 
     public OverlayWindow(
         ConfigService configService,
-        ActionRunner actionRunner,
         IconResolver iconResolver,
         ThemeService themeService)
     {
         _configService = configService;
-        _actionRunner = actionRunner;
         _iconResolver = iconResolver;
         _themeService = themeService;
 
@@ -52,7 +49,25 @@ public sealed partial class OverlayWindow : Window
         ConfigureWindow();
         TrySetAcrylicBackdrop();
         _themeService.Attach(this);
+        _iconResolver.SetDarkMode(_themeService.IsDark);
+        _themeService.DarkModeChanged += (_, isDark) =>
+        {
+            _iconResolver.SetDarkMode(isDark);
+            _ = DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    await RefreshCurrentGridAsync();
+                }
+                catch
+                {
+                    // Icon refresh is non-critical; ignore failures.
+                }
+            });
+        };
         RootGrid.Loaded += (_, _) => TryFocusOverlay();
+        // Catch keys even after a tile button marks KeyDown handled.
+        RootGrid.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(RootGrid_KeyDown), true);
         RootGrid.PointerPressed += RootGrid_PointerPressed;
         RootGrid.PointerMoved += RootGrid_PointerMoved;
         RootGrid.PointerReleased += RootGrid_PointerReleased;
@@ -162,13 +177,17 @@ public sealed partial class OverlayWindow : Window
             return;
         }
 
-        // Close when focus is lost (unless still opening, mid-drag, or editing).
-        if (_isVisible
-            && !_awaitingActivation
-            && !_isDragging
-            && !_isEditing
-            && DateTime.UtcNow - _shownAtUtc > TimeSpan.FromMilliseconds(100))
+        // Close when focus is lost (unless mid-drag or editing a tile).
+        // Do not keep the overlay open just because activation raced on show —
+        // once we're visible and not interacting, deactivate means dismiss.
+        if (_isVisible && !_isDragging && !_isEditing)
         {
+            // Ignore the synthetic deactivate that can fire while still showing.
+            if (_awaitingActivation && DateTime.UtcNow - _shownAtUtc < TimeSpan.FromMilliseconds(250))
+            {
+                return;
+            }
+
             HideOverlay();
         }
     }
@@ -219,6 +238,8 @@ public sealed partial class OverlayWindow : Window
             PositionOnCursorMonitor();
             ForceForeground();
             TryFocusOverlay();
+            // If Activated(Active) never arrived, stop treating deactivate as "still opening".
+            _awaitingActivation = false;
         });
     }
 
@@ -415,6 +436,7 @@ public sealed partial class OverlayWindow : Window
     }
 
     private const int TileSize = 88;
+    private const int TileIconSize = 36;
     private const int TileSpacing = 8;
     private const int WindowPadX = 24;
     private const int WindowPadTop = 44;
@@ -555,13 +577,20 @@ public sealed partial class OverlayWindow : Window
         }
     }
 
-    private FrameworkElement CreateTileButton(ActionTileViewModel tile)
+    private Grid CreateTileButton(ActionTileViewModel tile)
     {
         var wrapper = new Grid
         {
             Width = TileSize,
             Height = TileSize,
         };
+
+        // Split the tile into the icon area and the leftover strip below the
+        // (vertically centered) icon, so the name label can be centered within
+        // that strip rather than pinned to the tile's bottom edge.
+        var nameStripHeight = (TileSize - TileIconSize) / 2.0;
+        wrapper.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        wrapper.RowDefinitions.Add(new RowDefinition { Height = new GridLength(nameStripHeight) });
 
         var button = new Button
         {
@@ -573,15 +602,19 @@ public sealed partial class OverlayWindow : Window
             Tag = tile,
             IsEnabled = true,
             Opacity = tile.IsEmpty ? 0.35 : 1,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            BorderBrush = null,
             CornerRadius = new CornerRadius(12),
             Content = new Image
             {
-                Width = 36,
-                Height = 36,
+                Width = TileIconSize,
+                Height = TileIconSize,
                 Stretch = Stretch.Uniform,
                 Source = tile.Icon,
             },
         };
+        Grid.SetRowSpan(button, 2);
         button.Click += Tile_Click;
         button.RightTapped += Tile_RightTapped;
 
@@ -597,9 +630,32 @@ public sealed partial class OverlayWindow : Window
             VerticalAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false,
         };
+        Grid.SetRowSpan(keyLabel, 2);
 
         wrapper.Children.Add(button);
         wrapper.Children.Add(keyLabel);
+
+        if (!string.IsNullOrWhiteSpace(tile.Name))
+        {
+            var nameLabel = new TextBlock
+            {
+                Text = tile.Name,
+                FontSize = 9,
+                Opacity = tile.IsEmpty ? 0.35 : 0.75,
+                Margin = new Thickness(4, 0, 4, 0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.NoWrap,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = TileSize - 8,
+                IsHitTestVisible = false,
+            };
+            Grid.SetRow(nameLabel, 1);
+
+            wrapper.Children.Add(nameLabel);
+        }
+
         return wrapper;
     }
 
@@ -814,11 +870,31 @@ public sealed partial class OverlayWindow : Window
         }
     }
 
+    private void EscapeAccelerator_Invoked(
+        KeyboardAccelerator sender,
+        KeyboardAcceleratorInvokedEventArgs args)
+    {
+        HideOverlay();
+        args.Handled = true;
+    }
+
     private void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (!_isVisible || _isEditing)
+        {
+            return;
+        }
+
         if (e.Key == VirtualKey.Escape)
         {
-            GoBackOrHide();
+            HideOverlay();
+            e.Handled = true;
+            return;
+        }
+
+        // Ignore chorded input (Ctrl/Shift/Alt/Win + key) and bare modifier presses.
+        if (IsModifierKey(e.Key) || AnyModifierDown())
+        {
             e.Handled = true;
             return;
         }
@@ -855,6 +931,37 @@ public sealed partial class OverlayWindow : Window
                 }
             }
         }
+    }
+
+    private static bool IsModifierKey(VirtualKey key) =>
+        key is VirtualKey.Control
+            or VirtualKey.LeftControl
+            or VirtualKey.RightControl
+            or VirtualKey.Shift
+            or VirtualKey.LeftShift
+            or VirtualKey.RightShift
+            or VirtualKey.Menu
+            or VirtualKey.LeftMenu
+            or VirtualKey.RightMenu
+            or VirtualKey.LeftWindows
+            or VirtualKey.RightWindows;
+
+    private static bool AnyModifierDown()
+    {
+        static bool Down(int vk) => (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
+
+        // Generic + left/right variants so sticky side keys are covered.
+        return Down(0x10) // VK_SHIFT
+            || Down(0x11) // VK_CONTROL
+            || Down(0x12) // VK_MENU (Alt)
+            || Down(0xA0) // VK_LSHIFT
+            || Down(0xA1) // VK_RSHIFT
+            || Down(0xA2) // VK_LCONTROL
+            || Down(0xA3) // VK_RCONTROL
+            || Down(0xA4) // VK_LMENU
+            || Down(0xA5) // VK_RMENU
+            || Down(0x5B) // VK_LWIN
+            || Down(0x5C); // VK_RWIN
     }
 
     private void ActivateTile(ActionTileViewModel tile)
@@ -895,7 +1002,7 @@ public sealed partial class OverlayWindow : Window
 
         if (string.Equals(action.Type, "shell", StringComparison.OrdinalIgnoreCase))
         {
-            if (_actionRunner.TryRunShell(action, out var error))
+            if (ActionRunner.TryRunShell(action, out var error))
             {
                 HideOverlay();
                 return;
@@ -925,7 +1032,7 @@ public sealed partial class OverlayWindow : Window
     private async Task SendHotkeyAfterHideAsync(string name, ActionConfig action)
     {
         await Task.Delay(80);
-        if (_actionRunner.TryRunHotkey(action, out var error))
+        if (ActionRunner.TryRunHotkey(action, out var error))
         {
             return;
         }
@@ -977,6 +1084,9 @@ public sealed partial class OverlayWindow : Window
     {
         public const uint MonitorDefaultToNearest = 2;
         public const int MdtEffectiveDpi = 0;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         public static extern bool GetCursorPos(out Point point);
