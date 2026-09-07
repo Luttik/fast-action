@@ -6,34 +6,71 @@ namespace FastAction.Services;
 public sealed class ThemeService : IDisposable
 {
     private readonly UISettings _uiSettings = new();
-    private Window? _window;
+    private readonly List<WeakReference<Window>> _windows = [];
+    private bool _isDark;
+    private bool _listening;
+
+    public bool IsDark => _isDark;
+
+    public event EventHandler<bool>? DarkModeChanged;
 
     public void Attach(Window window)
     {
-        _window = window;
+        _windows.RemoveAll(w => !w.TryGetTarget(out _));
+        _windows.Add(new WeakReference<Window>(window));
+
+        if (!_listening)
+        {
+            _uiSettings.ColorValuesChanged += OnColorValuesChanged;
+            _listening = true;
+        }
+
         Apply();
-        _uiSettings.ColorValuesChanged += OnColorValuesChanged;
     }
 
     public void Apply()
     {
-        if (_window?.Content is not FrameworkElement root)
-        {
-            return;
-        }
-
         var background = _uiSettings.GetColorValue(UIColorType.Background);
         var isDark = background.R < 128 && background.G < 128 && background.B < 128;
-        root.RequestedTheme = isDark ? ElementTheme.Dark : ElementTheme.Light;
+        if (isDark != _isDark)
+        {
+            _isDark = isDark;
+            DarkModeChanged?.Invoke(this, isDark);
+        }
+
+        foreach (var weak in _windows.ToArray())
+        {
+            if (!weak.TryGetTarget(out var window) || window.Content is not FrameworkElement root)
+            {
+                continue;
+            }
+
+            root.RequestedTheme = isDark ? ElementTheme.Dark : ElementTheme.Light;
+        }
     }
 
     private void OnColorValuesChanged(UISettings sender, object args)
     {
-        _window?.DispatcherQueue.TryEnqueue(Apply);
+        Window? dispatcherHost = null;
+        foreach (var weak in _windows)
+        {
+            if (weak.TryGetTarget(out dispatcherHost))
+            {
+                break;
+            }
+        }
+
+        dispatcherHost?.DispatcherQueue.TryEnqueue(Apply);
     }
 
     public void Dispose()
     {
-        _uiSettings.ColorValuesChanged -= OnColorValuesChanged;
+        if (_listening)
+        {
+            _uiSettings.ColorValuesChanged -= OnColorValuesChanged;
+            _listening = false;
+        }
+
+        _windows.Clear();
     }
 }

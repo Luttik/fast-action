@@ -19,7 +19,7 @@ Once the first release has gone through the one-time WinGet setup described in [
 winget install Luttik.FastAction
 ```
 
-Until then, or if you'd rather grab it directly, download the latest `FastActionSetup-*.exe` from [Releases](https://github.com/Luttik/fast-action/releases) and run it — it's a normal per-user/per-machine installer (via Inno Setup) with a Start Menu shortcut, per-user startup registration (`HKCU\...\Run`), and a clean uninstaller. No separate .NET or Windows App SDK runtime install is required; the app is self-contained.
+Until then, or if you'd rather grab it directly, download the latest `FastActionSetup-*.exe` from [Releases](https://github.com/Luttik/fast-action/releases) and run it — it's a normal machine-wide installer (via Inno Setup; requires admin) with a Start Menu shortcut, per-user startup registration (`HKCU\...\Run`), and a clean uninstaller. No separate .NET or Windows App SDK runtime install is required; the app is self-contained.
 
 ## Run from source
 
