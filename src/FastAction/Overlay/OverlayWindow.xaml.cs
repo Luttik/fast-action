@@ -28,6 +28,7 @@ public sealed partial class OverlayWindow : Window
     private bool _isDragging;
     private bool _isEditing;
     private bool _awaitingActivation;
+    private bool _waitForModifierRelease;
     private int _bindGeneration;
     private DateTime _shownAtUtc;
     private PointInt32 _dragStartCursor;
@@ -177,17 +178,13 @@ public sealed partial class OverlayWindow : Window
             return;
         }
 
-        // Close when focus is lost (unless mid-drag or editing a tile).
-        // Do not keep the overlay open just because activation raced on show —
-        // once we're visible and not interacting, deactivate means dismiss.
-        if (_isVisible && !_isDragging && !_isEditing)
+        // Close when focus is lost (unless mid-drag, editing, or still opening).
+        if (_isVisible
+            && !_isDragging
+            && !_isEditing
+            && !_awaitingActivation
+            && DateTime.UtcNow - _shownAtUtc > TimeSpan.FromMilliseconds(300))
         {
-            // Ignore the synthetic deactivate that can fire while still showing.
-            if (_awaitingActivation && DateTime.UtcNow - _shownAtUtc < TimeSpan.FromMilliseconds(250))
-            {
-                return;
-            }
-
             HideOverlay();
         }
     }
@@ -215,6 +212,8 @@ public sealed partial class OverlayWindow : Window
         PositionOnCursorMonitor();
         _shownAtUtc = DateTime.UtcNow;
         _awaitingActivation = true;
+        // Opening chord is Win+Shift+Space; ignore tile keys until those modifiers are up.
+        _waitForModifierRelease = AnyModifierDown();
         if (_configurationSource is not null)
         {
             _configurationSource.IsInputActive = true;
@@ -238,8 +237,6 @@ public sealed partial class OverlayWindow : Window
             PositionOnCursorMonitor();
             ForceForeground();
             TryFocusOverlay();
-            // If Activated(Active) never arrived, stop treating deactivate as "still opening".
-            _awaitingActivation = false;
         });
     }
 
@@ -250,6 +247,7 @@ public sealed partial class OverlayWindow : Window
         AppWindow.Hide();
         _isVisible = false;
         _awaitingActivation = false;
+        _waitForModifierRelease = false;
         _gridStack.Clear();
     }
 
@@ -892,10 +890,31 @@ public sealed partial class OverlayWindow : Window
             return;
         }
 
-        // Ignore chorded input (Ctrl/Shift/Alt/Win + key) and bare modifier presses.
-        if (IsModifierKey(e.Key) || AnyModifierDown())
+        // Never mark modifier key events Handled — swallowing Win/Shift after the
+        // open hotkey can leave the keyboard/UI feeling frozen.
+        if (IsModifierKey(e.Key))
         {
-            e.Handled = true;
+            if (_waitForModifierRelease && !AnyModifierDown())
+            {
+                _waitForModifierRelease = false;
+            }
+
+            return;
+        }
+
+        if (_waitForModifierRelease)
+        {
+            if (AnyModifierDown())
+            {
+                return;
+            }
+
+            _waitForModifierRelease = false;
+        }
+
+        // Ignore chorded input (Ctrl/Shift/Alt/Win + key), but do not swallow it.
+        if (AnyModifierDown())
+        {
             return;
         }
 
