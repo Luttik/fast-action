@@ -50,6 +50,7 @@ The app starts in the system tray. Default hotkey: **Win+Shift+Space** (register
 ## Tray menu
 
 - **Open overlay** — show the root grid
+- **Settings** — show the overlay with the layout/appearance pane open
 - **Open config folder** — `%LOCALAPPDATA%\FastAction`
 - **Reload config** — re-read `config.yaml`
 - **Start with Windows** — toggle launching automatically at sign-in (checked by default)
@@ -74,6 +75,14 @@ hotkey:
 rootGridId: home
 editOnRightClick: true      # right-click a tile to edit or clear it
 runOnStartup: true          # launch automatically at Windows sign-in
+layout:
+  startKey: "1"             # top-left key of the overlay grid
+  columns: 4                # 1–10
+  rows: 4                   # 1–4
+appearance:
+  theme: system             # system | light | dark
+  tileSize: 88              # 72 | 88 | 112
+  cornerRadius: 12          # 4 | 12 | 22
 grids:
   - id: home
     title: Home
@@ -118,7 +127,7 @@ grids:
 
 ### Keyboard layout
 
-Built as a 3x3 letter core, plus number row `1–3`, plus a 4th column (`4 R F V`):
+The overlay is a rectangular slice of the US QWERTY map. `layout.startKey` is the top-left key; `columns` and `rows` size the slice. The default (`startKey: "1"`, 4×4) matches the original grid:
 
 |     |     |     |     |
 | --- | --- | --- | --- |
@@ -127,7 +136,9 @@ Built as a 3x3 letter core, plus number row `1–3`, plus a 4th column (`4 R F V
 | A   | S   | D   | F   |
 | Z   | X   | C   | V   |
 
-Empty slots stay blank. Esc pops a nested grid or closes at root. Backspace pops when nested.
+`startKey: Q` with 3×3 is the letter core (`Q W E` / `A S D` / `Z X C`). Keys outside the current slice stay in `config.yaml` and come back if you enlarge the grid later.
+
+The overlay **Grid** and **Appearance** menus (and the gear on the overlay) write these values live. Empty slots stay blank. Esc pops a nested grid or closes at root. Backspace pops when nested.
 
 Values with colons (protocol handlers like `ms-settings:`) must be quoted in YAML:
 
@@ -161,10 +172,11 @@ python scripts/build_icons.py
 
 ```
 src/FastAction/          WinUI 3 unpackaged tray app
-  Overlay/               Acrylic keyboard grid overlay
+  Overlay/               Acrylic keyboard grid overlay + menu/settings
   Services/              Config, hotkey, actions, icons, theme
   Models/                YAML models + QWERTY layout
   Assets/config.example.yaml   shipped first-run template
+src/FastAction.Tests/    Layout/appearance unit tests (no WinUI)
 ```
 
 ## Releases & distribution
@@ -231,6 +243,9 @@ dotnet build src\FastAction\FastAction.csproj -c Release -p:Platform=x64
 
 # C# style/format check (add `dotnet format FastAction.sln` without --verify-no-changes to auto-fix)
 dotnet format FastAction.sln --verify-no-changes
+
+# Layout unit tests (no WinUI)
+dotnet test src\FastAction.Tests\FastAction.Tests.csproj
 
 # Python lint/format (scripts/build_icons.py)
 pip install ruff

@@ -5,6 +5,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
@@ -34,6 +35,8 @@ public sealed partial class OverlayWindow : Window
     private PointInt32 _dragStartCursor;
     private PointInt32 _dragStartWindow;
     private DispatcherTimer? _statusTimer;
+    private bool _suppressSettingsEvents;
+    private bool _settingsOpen;
 
     public event EventHandler<FeedbackEventArgs>? FeedbackRequested;
 
@@ -51,14 +54,20 @@ public sealed partial class OverlayWindow : Window
         InitializeComponent();
         ConfigureWindow();
         TrySetAcrylicBackdrop();
-        _themeService.Attach(this);
-        RootGrid.Loaded += (_, _) => TryFocusOverlay();
+        _themeService.Attach(this, () => _configService.Config.Appearance?.Theme ?? "system");
+        RootGrid.Loaded += (_, _) =>
+        {
+            TryFocusOverlay();
+            SyncSettingsPane();
+            RebuildMenus();
+        };
         RootGrid.PointerPressed += RootGrid_PointerPressed;
         RootGrid.PointerMoved += RootGrid_PointerMoved;
         RootGrid.PointerReleased += RootGrid_PointerReleased;
         RootGrid.PointerCaptureLost += RootGrid_PointerCaptureLost;
         Activated += OnWindowActivated;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        _configService.ConfigChanged += OnConfigChanged;
     }
 
     private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -137,7 +146,14 @@ public sealed partial class OverlayWindow : Window
              current is not null;
              current = VisualTreeHelper.GetParent(current))
         {
-            if (current is Button)
+            if (current is Button
+                or MenuBar
+                or MenuBarItem
+                or ComboBox
+                or NumberBox
+                or RepeatButton
+                or ToggleButton
+                or TextBox)
             {
                 return true;
             }
@@ -162,12 +178,13 @@ public sealed partial class OverlayWindow : Window
             return;
         }
 
-        // Close when focus is lost (unless still opening, mid-drag, or editing).
+        // Close when focus is lost (unless still opening, mid-drag, editing, or a flyout is open).
         if (_isVisible
             && !_awaitingActivation
             && !_isDragging
             && !_isEditing
-            && DateTime.UtcNow - _shownAtUtc > TimeSpan.FromMilliseconds(100))
+            && DateTime.UtcNow - _shownAtUtc > TimeSpan.FromMilliseconds(100)
+            && !HasOpenPopup())
         {
             HideOverlay();
         }
@@ -192,6 +209,8 @@ public sealed partial class OverlayWindow : Window
         _gridStack.Push(root.Id);
         _ = BindGridAsync(root);
         ClearStatus();
+        RebuildMenus();
+        SyncSettingsPane();
 
         PositionOnCursorMonitor();
         _shownAtUtc = DateTime.UtcNow;
@@ -331,6 +350,16 @@ public sealed partial class OverlayWindow : Window
         }
     }
 
+    public void ShowOverlaySettings()
+    {
+        if (!_isVisible)
+        {
+            ShowOverlay();
+        }
+
+        SetSettingsOpen(true);
+    }
+
     private void ConfigureWindow()
     {
         ExtendsContentIntoTitleBar = true;
@@ -396,6 +425,7 @@ public sealed partial class OverlayWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        _configService.ConfigChanged -= OnConfigChanged;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         _acrylicController?.Dispose();
         _acrylicController = null;
@@ -414,11 +444,10 @@ public sealed partial class OverlayWindow : Window
         });
     }
 
-    private const int TileSize = 88;
     private const int TileSpacing = 8;
     private const int WindowPadX = 24;
-    private const int WindowPadTop = 44;
-    private const int WindowPadBottom = 24;
+    private const int WindowPadBottom = 16;
+    private const int OriginKeySize = 26;
 
     private void PositionOnCursorMonitor()
     {
@@ -433,12 +462,25 @@ public sealed partial class OverlayWindow : Window
             // Fall back to primary.
         }
 
-        var cols = KeyboardLayout.Rows[0].Length;
-        var rows = KeyboardLayout.Rows.Length;
-        var contentWidthDip = (cols * TileSize) + ((cols - 1) * TileSpacing);
-        var contentHeightDip = (rows * TileSize) + ((rows - 1) * TileSpacing);
-        var widthDip = contentWidthDip + (WindowPadX * 2);
-        var heightDip = contentHeightDip + WindowPadTop + WindowPadBottom;
+        var layout = _configService.GetLayout();
+        var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
+        var tileSize = AppearanceConfig.NormalizeTileSize(appearance.TileSize);
+        var cols = Math.Max(1, layout.ColumnCount);
+        var rows = Math.Max(1, layout.RowCount);
+        var contentWidthDip = (cols * tileSize) + ((cols - 1) * TileSpacing);
+        var contentHeightDip = (rows * tileSize) + ((rows - 1) * TileSpacing);
+        var menuHeight = MenuRow.ActualHeight > 0 ? MenuRow.ActualHeight : 40;
+        var settingsHeight = 0.0;
+        var settingsWidth = 0.0;
+        if (_settingsOpen)
+        {
+            settingsHeight = SettingsPane.ActualHeight > 0 ? SettingsPane.ActualHeight : 220;
+            settingsWidth = SettingsPane.ActualWidth > 0 ? SettingsPane.ActualWidth : 420;
+        }
+
+        var widthDip = Math.Max(contentWidthDip, settingsWidth) + (WindowPadX * 2);
+        widthDip = Math.Max(widthDip, 320);
+        var heightDip = menuHeight + settingsHeight + contentHeightDip + 28 + WindowPadBottom;
 
         // Size for the monitor under the cursor — not the (often stale) HWND/XamlRoot DPI
         // after dock/undock or while the overlay is still hidden.
@@ -485,17 +527,18 @@ public sealed partial class OverlayWindow : Window
     private async Task BindGridAsync(GridConfig grid)
     {
         var generation = ++_bindGeneration;
+        var layout = _configService.GetLayout();
         var itemMap = (grid.Items ?? [])
-            .Where(i => !string.IsNullOrWhiteSpace(i.Key) && KeyboardLayout.IsValidKey(i.Key))
+            .Where(i => !string.IsNullOrWhiteSpace(i.Key) && layout.IsValidKey(i.Key))
             .GroupBy(i => KeyboardLayout.NormalizeKey(i.Key))
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         var rows = new List<GridRowViewModel>();
 
-        for (var r = 0; r < KeyboardLayout.Rows.Length; r++)
+        for (var r = 0; r < layout.Rows.Count; r++)
         {
             var tiles = new List<ActionTileViewModel>();
-            foreach (var key in KeyboardLayout.Rows[r])
+            foreach (var key in layout.Rows[r])
             {
                 itemMap.TryGetValue(key, out var item);
                 var tile = new ActionTileViewModel
@@ -531,6 +574,7 @@ public sealed partial class OverlayWindow : Window
         }
 
         BuildRows(rows);
+        PositionOnCursorMonitor();
     }
 
     private void BuildRows(IReadOnlyList<GridRowViewModel> rows)
@@ -557,27 +601,31 @@ public sealed partial class OverlayWindow : Window
 
     private FrameworkElement CreateTileButton(ActionTileViewModel tile)
     {
+        var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
+        var tileSize = AppearanceConfig.NormalizeTileSize(appearance.TileSize);
+        var corner = AppearanceConfig.NormalizeCornerRadius(appearance.CornerRadius);
+
         var wrapper = new Grid
         {
-            Width = TileSize,
-            Height = TileSize,
+            Width = tileSize,
+            Height = tileSize,
         };
 
         var button = new Button
         {
-            Width = TileSize,
-            Height = TileSize,
+            Width = tileSize,
+            Height = tileSize,
             Padding = new Thickness(0),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Tag = tile,
             IsEnabled = true,
             Opacity = tile.IsEmpty ? 0.35 : 1,
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(corner),
             Content = new Image
             {
-                Width = 36,
-                Height = 36,
+                Width = tileSize * 0.41,
+                Height = tileSize * 0.41,
                 Stretch = Stretch.Uniform,
                 Source = tile.Icon,
             },
@@ -953,6 +1001,369 @@ public sealed partial class OverlayWindow : Window
         HideOverlay();
     }
 
+    private void OnConfigChanged(object? sender, EventArgs e)
+    {
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            DispatcherQueue.TryEnqueue(() => OnConfigChanged(sender, e));
+            return;
+        }
+
+        _themeService.Apply();
+        RebuildMenus();
+        SyncSettingsPane();
+        if (_isVisible)
+        {
+            _ = RefreshCurrentGridAsync();
+        }
+    }
+
+    private void SettingsToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetSettingsOpen(!_settingsOpen);
+    }
+
+    private void CloseOverlayButton_Click(object sender, RoutedEventArgs e) => HideOverlay();
+
+    private void SetSettingsOpen(bool open)
+    {
+        _settingsOpen = open;
+        SettingsPane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        if (open)
+        {
+            SyncSettingsPane();
+            BuildOriginPicker();
+        }
+
+        PositionOnCursorMonitor();
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_isVisible)
+            {
+                PositionOnCursorMonitor();
+            }
+        });
+        TryFocusOverlay();
+    }
+
+    private void SizeBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_suppressSettingsEvents || !_settingsOpen)
+        {
+            return;
+        }
+
+        if (double.IsNaN(ColumnsBox.Value) || double.IsNaN(RowsBox.Value))
+        {
+            return;
+        }
+
+        var columns = (int)Math.Round(ColumnsBox.Value);
+        var rows = (int)Math.Round(RowsBox.Value);
+        var current = _configService.GetLayout();
+        if (columns == current.RequestedColumns && rows == current.RequestedRows)
+        {
+            return;
+        }
+
+        _configService.UpdateLayout(current.StartKey, columns, rows);
+    }
+
+    private void AppearanceCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressSettingsEvents)
+        {
+            return;
+        }
+
+        var theme = ThemeBox.SelectedIndex switch
+        {
+            1 => "light",
+            2 => "dark",
+            _ => "system",
+        };
+        var tileSize = TileSizeBox.SelectedIndex switch
+        {
+            0 => AppearanceConfig.CompactTileSize,
+            2 => AppearanceConfig.LargeTileSize,
+            _ => AppearanceConfig.DefaultTileSize,
+        };
+        var corner = CornerBox.SelectedIndex switch
+        {
+            0 => AppearanceConfig.SharpCornerRadius,
+            2 => AppearanceConfig.PillCornerRadius,
+            _ => AppearanceConfig.RoundedCornerRadius,
+        };
+        var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
+        if (theme == AppearanceConfig.NormalizeTheme(appearance.Theme)
+            && tileSize == AppearanceConfig.NormalizeTileSize(appearance.TileSize)
+            && corner == AppearanceConfig.NormalizeCornerRadius(appearance.CornerRadius))
+        {
+            return;
+        }
+
+        _configService.UpdateAppearance(theme, tileSize, corner);
+    }
+
+    private void RebuildMenus()
+    {
+        OverlayMenu.Items.Clear();
+        var layout = _configService.GetLayout();
+        var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
+
+        var gridMenu = new MenuBarItem { Title = "Grid" };
+        var sizeMenu = new MenuFlyoutSubItem { Text = "Size" };
+        foreach (var preset in KeyboardLayout.SizePresets)
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = preset.Label,
+                GroupName = "GridSize",
+                IsChecked = layout.RequestedRows == preset.Rows
+                    && layout.RequestedColumns == preset.Columns,
+            };
+            var captured = preset;
+            item.Click += (_, _) =>
+                _configService.UpdateLayout(layout.StartKey, captured.Columns, captured.Rows);
+            sizeMenu.Items.Add(item);
+        }
+
+        sizeMenu.Items.Add(new MenuFlyoutSeparator());
+        var customSize = new MenuFlyoutItem { Text = "Custom…" };
+        customSize.Click += (_, _) => SetSettingsOpen(true);
+        sizeMenu.Items.Add(customSize);
+        gridMenu.Items.Add(sizeMenu);
+
+        var startMenu = new MenuFlyoutSubItem { Text = "Start at" };
+        foreach (var origin in KeyboardLayout.CommonOrigins)
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = OriginLabel(origin),
+                GroupName = "GridOrigin",
+                IsChecked = string.Equals(layout.StartKey, origin, StringComparison.OrdinalIgnoreCase),
+            };
+            var captured = origin;
+            item.Click += (_, _) =>
+                _configService.UpdateLayout(captured, layout.RequestedColumns, layout.RequestedRows);
+            startMenu.Items.Add(item);
+        }
+
+        startMenu.Items.Add(new MenuFlyoutSeparator());
+        var chooseKey = new MenuFlyoutItem { Text = "Choose key…" };
+        chooseKey.Click += (_, _) => SetSettingsOpen(true);
+        startMenu.Items.Add(chooseKey);
+        gridMenu.Items.Add(startMenu);
+
+        OverlayMenu.Items.Add(gridMenu);
+
+        var appearanceMenu = new MenuBarItem { Title = "Appearance" };
+        appearanceMenu.Items.Add(BuildThemeMenu(appearance));
+        appearanceMenu.Items.Add(BuildTileSizeMenu(appearance));
+        appearanceMenu.Items.Add(BuildCornerMenu(appearance));
+        appearanceMenu.Items.Add(new MenuFlyoutSeparator());
+        var more = new MenuFlyoutItem { Text = "More settings…" };
+        more.Click += (_, _) => SetSettingsOpen(true);
+        appearanceMenu.Items.Add(more);
+        OverlayMenu.Items.Add(appearanceMenu);
+    }
+
+    private MenuFlyoutSubItem BuildThemeMenu(AppearanceConfig appearance)
+    {
+        var menu = new MenuFlyoutSubItem { Text = "Theme" };
+        AddAppearanceRadio(menu, "System", "ThemeChoice", appearance.Theme == "system", () =>
+            _configService.UpdateAppearance(theme: "system"));
+        AddAppearanceRadio(menu, "Light", "ThemeChoice", appearance.Theme == "light", () =>
+            _configService.UpdateAppearance(theme: "light"));
+        AddAppearanceRadio(menu, "Dark", "ThemeChoice", appearance.Theme == "dark", () =>
+            _configService.UpdateAppearance(theme: "dark"));
+        return menu;
+    }
+
+    private MenuFlyoutSubItem BuildTileSizeMenu(AppearanceConfig appearance)
+    {
+        var menu = new MenuFlyoutSubItem { Text = "Tiles" };
+        AddAppearanceRadio(
+            menu,
+            "Compact",
+            "TileSizeChoice",
+            appearance.TileSize == AppearanceConfig.CompactTileSize,
+            () => _configService.UpdateAppearance(tileSize: AppearanceConfig.CompactTileSize));
+        AddAppearanceRadio(
+            menu,
+            "Default",
+            "TileSizeChoice",
+            appearance.TileSize == AppearanceConfig.DefaultTileSize,
+            () => _configService.UpdateAppearance(tileSize: AppearanceConfig.DefaultTileSize));
+        AddAppearanceRadio(
+            menu,
+            "Large",
+            "TileSizeChoice",
+            appearance.TileSize == AppearanceConfig.LargeTileSize,
+            () => _configService.UpdateAppearance(tileSize: AppearanceConfig.LargeTileSize));
+        return menu;
+    }
+
+    private MenuFlyoutSubItem BuildCornerMenu(AppearanceConfig appearance)
+    {
+        var menu = new MenuFlyoutSubItem { Text = "Corners" };
+        AddAppearanceRadio(
+            menu,
+            "Sharp",
+            "CornerChoice",
+            appearance.CornerRadius == AppearanceConfig.SharpCornerRadius,
+            () => _configService.UpdateAppearance(cornerRadius: AppearanceConfig.SharpCornerRadius));
+        AddAppearanceRadio(
+            menu,
+            "Rounded",
+            "CornerChoice",
+            appearance.CornerRadius == AppearanceConfig.RoundedCornerRadius,
+            () => _configService.UpdateAppearance(cornerRadius: AppearanceConfig.RoundedCornerRadius));
+        AddAppearanceRadio(
+            menu,
+            "Pill",
+            "CornerChoice",
+            appearance.CornerRadius == AppearanceConfig.PillCornerRadius,
+            () => _configService.UpdateAppearance(cornerRadius: AppearanceConfig.PillCornerRadius));
+        return menu;
+    }
+
+    private static void AddAppearanceRadio(
+        MenuFlyoutSubItem menu,
+        string text,
+        string group,
+        bool isChecked,
+        Action apply)
+    {
+        var item = new RadioMenuFlyoutItem
+        {
+            Text = text,
+            GroupName = group,
+            IsChecked = isChecked,
+        };
+        item.Click += (_, _) => apply();
+        menu.Items.Add(item);
+    }
+
+    private static string OriginLabel(string key) => key switch
+    {
+        "1" => "1  ·  number row",
+        "Q" => "Q  ·  top letters",
+        "A" => "A  ·  home row",
+        "Z" => "Z  ·  bottom row",
+        _ => key,
+    };
+
+    private void SyncSettingsPane()
+    {
+        _suppressSettingsEvents = true;
+        try
+        {
+            var layout = _configService.GetLayout();
+            var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
+            ColumnsBox.Value = layout.RequestedColumns;
+            RowsBox.Value = layout.RequestedRows;
+            ThemeBox.SelectedIndex = appearance.Theme switch
+            {
+                "light" => 1,
+                "dark" => 2,
+                _ => 0,
+            };
+            TileSizeBox.SelectedIndex = appearance.TileSize switch
+            {
+                AppearanceConfig.CompactTileSize => 0,
+                AppearanceConfig.LargeTileSize => 2,
+                _ => 1,
+            };
+            CornerBox.SelectedIndex = appearance.CornerRadius switch
+            {
+                AppearanceConfig.SharpCornerRadius => 0,
+                AppearanceConfig.PillCornerRadius => 2,
+                _ => 1,
+            };
+            OriginHint.Text = $"Top-left is {layout.StartKey}. Highlight shows the {layout.RequestedColumns}×{layout.RequestedRows} slice.";
+            if (_settingsOpen)
+            {
+                BuildOriginPicker();
+            }
+        }
+        finally
+        {
+            _suppressSettingsEvents = false;
+        }
+    }
+
+    private void BuildOriginPicker()
+    {
+        OriginPickerHost.Children.Clear();
+        var layout = _configService.GetLayout();
+        for (var r = 0; r < KeyboardLayout.PhysicalRows.Length; r++)
+        {
+            var rowPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 3,
+            };
+            var physicalRow = KeyboardLayout.PhysicalRows[r];
+            for (var c = 0; c < physicalRow.Length; c++)
+            {
+                var key = physicalRow[c];
+                var inSlice = layout.ContainsPhysicalCell(r, c);
+                var isOrigin = string.Equals(key, layout.StartKey, StringComparison.OrdinalIgnoreCase);
+                var button = new Button
+                {
+                    Width = OriginKeySize,
+                    Height = OriginKeySize,
+                    Padding = new Thickness(0),
+                    Content = key,
+                    Tag = key,
+                    FontSize = 11,
+                    CornerRadius = new CornerRadius(4),
+                    Opacity = inSlice ? 1 : 0.45,
+                };
+                if (isOrigin
+                    && Application.Current.Resources.TryGetValue("AccentButtonStyle", out var styleObj)
+                    && styleObj is Style accentStyle)
+                {
+                    button.Style = accentStyle;
+                }
+
+                button.Click += OriginKey_Click;
+                rowPanel.Children.Add(button);
+            }
+
+            OriginPickerHost.Children.Add(rowPanel);
+        }
+    }
+
+    private void OriginKey_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string key })
+        {
+            return;
+        }
+
+        var layout = _configService.GetLayout();
+        _configService.UpdateLayout(key, layout.RequestedColumns, layout.RequestedRows);
+    }
+
+    private bool HasOpenPopup()
+    {
+        if (Content is not FrameworkElement { XamlRoot: not null } root)
+        {
+            return false;
+        }
+
+        try
+        {
+            return VisualTreeHelper.GetOpenPopupsForXamlRoot(root.XamlRoot).Count > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string? VirtualKeyToGridKey(VirtualKey key)
     {
         if (key is >= VirtualKey.A and <= VirtualKey.Z)
@@ -960,14 +1371,14 @@ public sealed partial class OverlayWindow : Window
             return ((char)('A' + (key - VirtualKey.A))).ToString();
         }
 
-        if (key is >= VirtualKey.Number1 and <= VirtualKey.Number4)
+        if (key is >= VirtualKey.Number0 and <= VirtualKey.Number9)
         {
-            return ((char)('1' + (key - VirtualKey.Number1))).ToString();
+            return ((char)('0' + (key - VirtualKey.Number0))).ToString();
         }
 
-        if (key is >= VirtualKey.NumberPad1 and <= VirtualKey.NumberPad4)
+        if (key is >= VirtualKey.NumberPad0 and <= VirtualKey.NumberPad9)
         {
-            return ((char)('1' + (key - VirtualKey.NumberPad1))).ToString();
+            return ((char)('0' + (key - VirtualKey.NumberPad0))).ToString();
         }
 
         return null;

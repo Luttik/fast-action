@@ -9,15 +9,163 @@
         Background="Transparent"
         IsTabStop="True"
         KeyDown="RootGrid_KeyDown">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid
+            x:Name="MenuRow"
+            Padding="8,4,8,0">
+            <MenuBar
+                x:Name="OverlayMenu"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center" />
+            <StackPanel
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="4">
+                <Button
+                    x:Name="SettingsToggleButton"
+                    Width="32"
+                    Height="28"
+                    Padding="0"
+                    Click="SettingsToggleButton_Click"
+                    ToolTipService.ToolTip="Settings">
+                    <FontIcon FontSize="12" Glyph="&#xE713;" />
+                </Button>
+                <Button
+                    x:Name="CloseOverlayButton"
+                    Width="32"
+                    Height="28"
+                    Padding="0"
+                    Click="CloseOverlayButton_Click"
+                    ToolTipService.ToolTip="Close">
+                    <FontIcon FontSize="12" Glyph="&#xE711;" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <Border
+            x:Name="SettingsPane"
+            Grid.Row="1"
+            Margin="12,8,12,0"
+            Padding="12"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Visibility="Collapsed">
+            <StackPanel Spacing="12">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Text="Start at" />
+                        <TextBlock
+                            x:Name="OriginHint"
+                            FontSize="11"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="Click a key to set the top-left of the grid." />
+                        <StackPanel
+                            x:Name="OriginPickerHost"
+                            Spacing="3" />
+                    </StackPanel>
+
+                    <StackPanel
+                        Grid.Column="1"
+                        MinWidth="168"
+                        Spacing="10">
+                        <TextBlock
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Text="Matrix size" />
+                        <NumberBox
+                            x:Name="ColumnsBox"
+                            Header="Columns"
+                            LargeChange="1"
+                            Maximum="10"
+                            Minimum="1"
+                            SmallChange="1"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="SizeBox_ValueChanged" />
+                        <NumberBox
+                            x:Name="RowsBox"
+                            Header="Rows"
+                            LargeChange="1"
+                            Maximum="4"
+                            Minimum="1"
+                            SmallChange="1"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="SizeBox_ValueChanged" />
+                    </StackPanel>
+                </Grid>
+
+                <MenuFlyoutSeparator />
+
+                <TextBlock
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="Appearance" />
+                <Grid ColumnSpacing="16" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="4">
+                        <TextBlock FontSize="11" Text="Theme" />
+                        <ComboBox
+                            x:Name="ThemeBox"
+                            HorizontalAlignment="Stretch"
+                            SelectionChanged="AppearanceCombo_SelectionChanged">
+                            <x:String>System</x:String>
+                            <x:String>Light</x:String>
+                            <x:String>Dark</x:String>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock FontSize="11" Text="Tiles" />
+                        <ComboBox
+                            x:Name="TileSizeBox"
+                            HorizontalAlignment="Stretch"
+                            SelectionChanged="AppearanceCombo_SelectionChanged">
+                            <x:String>Compact</x:String>
+                            <x:String>Default</x:String>
+                            <x:String>Large</x:String>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4">
+                        <TextBlock FontSize="11" Text="Corners" />
+                        <ComboBox
+                            x:Name="CornerBox"
+                            HorizontalAlignment="Stretch"
+                            SelectionChanged="AppearanceCombo_SelectionChanged">
+                            <x:String>Sharp</x:String>
+                            <x:String>Rounded</x:String>
+                            <x:String>Pill</x:String>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <StackPanel
             x:Name="RowsHost"
-            Margin="0,20,0,0"
+            Grid.Row="2"
+            Margin="12,12,12,16"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Spacing="8" />
 
         <InfoBar
             x:Name="StatusBar"
+            Grid.Row="2"
             Margin="12,0,12,12"
             VerticalAlignment="Bottom"
             IsClosable="True"
