@@ -611,25 +611,52 @@ public sealed partial class OverlayWindow : Window
             Height = tileSize,
         };
 
+        var content = new StackPanel
+        {
+            Spacing = 2,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        content.Children.Add(new Image
+        {
+            Width = tileSize * 0.34,
+            Height = tileSize * 0.34,
+            Stretch = Stretch.Uniform,
+            Source = tile.Icon,
+        });
+        if (!string.IsNullOrWhiteSpace(tile.Name))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = tile.Name,
+                FontSize = tileSize <= AppearanceConfig.CompactTileSize ? 9 : 10,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextAlignment = Microsoft.UI.Xaml.TextAlignment.Center,
+                TextTrimming = Microsoft.UI.Xaml.TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                MaxLines = 1,
+                Width = tileSize - 10,
+                Opacity = 0.92,
+            });
+        }
+
         var button = new Button
         {
             Width = tileSize,
             Height = tileSize,
-            Padding = new Thickness(0),
+            Padding = new Thickness(4, 16, 4, 6),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Tag = tile,
             IsEnabled = true,
             Opacity = tile.IsEmpty ? 0.35 : 1,
             CornerRadius = new CornerRadius(corner),
-            Content = new Image
-            {
-                Width = tileSize * 0.41,
-                Height = tileSize * 0.41,
-                Stretch = Stretch.Uniform,
-                Source = tile.Icon,
-            },
+            Content = content,
         };
+        if (!string.IsNullOrWhiteSpace(tile.Name))
+        {
+            ToolTipService.SetToolTip(button, tile.Name);
+        }
         button.Click += Tile_Click;
         button.RightTapped += Tile_RightTapped;
 
