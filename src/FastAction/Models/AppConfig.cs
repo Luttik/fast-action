@@ -46,6 +46,18 @@ public sealed class AppearanceConfig
 
     public int CornerRadius { get; set; } = RoundedCornerRadius;
 
+    /// <summary>When true, use Desktop Acrylic (Windows Terminal-style frosted glass).</summary>
+    public bool Acrylic { get; set; } = true;
+
+    /// <summary>Background opacity 20–100, like Windows Terminal. Higher is more solid.</summary>
+    public int Opacity { get; set; } = 80;
+
+    /// <summary>standard | soft (thin acrylic).</summary>
+    public string AcrylicBlur { get; set; } = "standard";
+
+    /// <summary>Default Lucide tint when a tile does not set <c>icon.color</c>.</summary>
+    public string LucideColor { get; set; } = LucidePalette.Auto;
+
     public static string NormalizeTheme(string? theme) =>
         (theme ?? "system").Trim().ToLowerInvariant() switch
         {
@@ -69,6 +81,11 @@ public sealed class AppearanceConfig
             PillCornerRadius => PillCornerRadius,
             _ => RoundedCornerRadius,
         };
+
+    public static int NormalizeOpacity(int opacity) => Math.Clamp(opacity, 20, 100);
+
+    public static string NormalizeAcrylicBlur(string? blur) =>
+        (blur ?? "standard").Trim().ToLowerInvariant() == "soft" ? "soft" : "standard";
 }
 
 public sealed class HotkeyConfig
@@ -106,6 +123,9 @@ public sealed class IconConfig
     public string? Path { get; set; }
 
     public string? Name { get; set; }
+
+    /// <summary>Lucide palette id (auto, blue, green, …). Ignored for app/svg icons.</summary>
+    public string? Color { get; set; }
 }
 
 public sealed class ActionConfig

@@ -223,7 +223,14 @@ public sealed class ConfigService : IDisposable
         ConfigChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void UpdateAppearance(string? theme = null, int? tileSize = null, int? cornerRadius = null)
+    public void UpdateAppearance(
+        string? theme = null,
+        int? tileSize = null,
+        int? cornerRadius = null,
+        bool? acrylic = null,
+        int? opacity = null,
+        string? acrylicBlur = null,
+        string? lucideColor = null)
     {
         lock (_lock)
         {
@@ -241,6 +248,26 @@ public sealed class ConfigService : IDisposable
             if (cornerRadius is not null)
             {
                 _config.Appearance.CornerRadius = AppearanceConfig.NormalizeCornerRadius(cornerRadius.Value);
+            }
+
+            if (acrylic is not null)
+            {
+                _config.Appearance.Acrylic = acrylic.Value;
+            }
+
+            if (opacity is not null)
+            {
+                _config.Appearance.Opacity = AppearanceConfig.NormalizeOpacity(opacity.Value);
+            }
+
+            if (acrylicBlur is not null)
+            {
+                _config.Appearance.AcrylicBlur = AppearanceConfig.NormalizeAcrylicBlur(acrylicBlur);
+            }
+
+            if (lucideColor is not null)
+            {
+                _config.Appearance.LucideColor = LucidePalette.Normalize(lucideColor);
             }
 
             SaveUnlocked();
@@ -361,6 +388,9 @@ public sealed class ConfigService : IDisposable
         config.Appearance.Theme = AppearanceConfig.NormalizeTheme(config.Appearance.Theme);
         config.Appearance.TileSize = AppearanceConfig.NormalizeTileSize(config.Appearance.TileSize);
         config.Appearance.CornerRadius = AppearanceConfig.NormalizeCornerRadius(config.Appearance.CornerRadius);
+        config.Appearance.Opacity = AppearanceConfig.NormalizeOpacity(config.Appearance.Opacity);
+        config.Appearance.AcrylicBlur = AppearanceConfig.NormalizeAcrylicBlur(config.Appearance.AcrylicBlur);
+        config.Appearance.LucideColor = LucidePalette.Normalize(config.Appearance.LucideColor);
 
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var grid in config.Grids)
@@ -391,6 +421,11 @@ public sealed class ConfigService : IDisposable
                 if (string.IsNullOrWhiteSpace(item.Icon.Type))
                 {
                     item.Icon.Type = "lucide";
+                }
+
+                if (!string.IsNullOrWhiteSpace(item.Icon.Color))
+                {
+                    item.Icon.Color = LucidePalette.Normalize(item.Icon.Color);
                 }
 
                 if (!resolved.IsValidKey(key))

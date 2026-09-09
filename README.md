@@ -5,6 +5,16 @@
 
 A PowerToys-inspired Windows keyboard overlay. Press a global hotkey to open a QWERTY-aligned action grid. Keys and clicks run shell commands or open nested grids.
 
+<p align="center">
+  <img src="docs/screenshots/overlay-4x4.png" alt="Fast Action overlay, 4×4 grid" width="420" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/overlay-3x3.png" alt="3×3 overlay starting at Q" width="280" />
+  &nbsp;
+  <img src="docs/screenshots/overlay-settings.png" alt="Overlay settings pane" width="420" />
+</p>
+
 ## Requirements
 
 - Windows 10 1809+ / Windows 11
@@ -83,6 +93,10 @@ appearance:
   theme: system             # system | light | dark
   tileSize: 88              # 72 | 88 | 112
   cornerRadius: 12          # 4 | 12 | 22
+  acrylic: true             # Windows Terminal-style frosted glass
+  opacity: 80               # 20–100 (higher = more solid)
+  acrylicBlur: standard     # standard | soft
+  lucideColor: auto         # default Lucide tint
 grids:
   - id: home
     title: Home
@@ -102,6 +116,7 @@ grids:
         icon:
           type: lucide
           name: wrench      # Assets/Icons/lucide/{name}.svg
+          color: orange     # auto | white | slate | blue | green | amber | orange | pink | purple | red
         action:
           type: grid
           gridId: devtools
@@ -138,7 +153,7 @@ The overlay is a rectangular slice of the US QWERTY map. `layout.startKey` is th
 
 `startKey: Q` with 3×3 is the letter core (`Q W E` / `A S D` / `Z X C`). Keys outside the current slice stay in `config.yaml` and come back if you enlarge the grid later.
 
-The overlay **Grid** and **Appearance** menus (and the gear on the overlay) write these values live. Empty slots stay blank. Esc pops a nested grid or closes at root. Backspace pops when nested.
+The overlay **Grid** and **Appearance** menus (and the gear on the overlay) write these values live. **Appearance → Acrylic** toggles Desktop Acrylic, sets opacity (20–100, like Windows Terminal), and chooses standard vs soft blur. **Lucide color** tints stroke icons; a tile can override that with `icon.color`. Empty slots stay blank. Esc pops a nested grid or closes at root. Backspace pops when nested.
 
 Values with colons (protocol handlers like `ms-settings:`) must be quoted in YAML:
 
@@ -150,7 +165,7 @@ command: "ms-settings:"
 | Type     | Fields                         | Notes                                      |
 | -------- | ------------------------------ | ------------------------------------------ |
 | `app`    | `path`                         | `.exe` / `.lnk`; icon extracted via Shell  |
-| `lucide` | `name`                         | Full Lucide set under `Assets/Icons/lucide/` (e.g. `wrench`, `file`) |
+| `lucide` | `name`, optional `color`       | Full Lucide set under `Assets/Icons/lucide/` (e.g. `wrench`, `file`). `color` is a palette id (`auto`, `blue`, `orange`, …) or falls back to `appearance.lucideColor`. |
 | `svg`    | `path`                         | Custom SVG on disk                         |
 
 Browse names at [lucide.dev/icons](https://lucide.dev/icons). To refresh the bundled set:
@@ -177,6 +192,9 @@ src/FastAction/          WinUI 3 unpackaged tray app
   Models/                YAML models + QWERTY layout
   Assets/config.example.yaml   shipped first-run template
 src/FastAction.Tests/    Layout/appearance unit tests (no WinUI)
+docs/overlay-mock/       HTML mock used to maintain README screenshots
+docs/screenshots/        PNG stills embedded in this README
+.cursor/skills/readme-screenshots/  How to regenerate those stills
 ```
 
 ## Releases & distribution
