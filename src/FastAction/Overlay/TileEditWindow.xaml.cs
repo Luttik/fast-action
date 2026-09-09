@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.Windows.Storage.Pickers;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.UI;
 using WinRT.Interop;
 
 namespace FastAction.Overlay;
@@ -32,6 +33,7 @@ public sealed partial class TileEditWindow : Window
     private bool _suppressPreview;
     private int _previewGeneration;
     private HotkeyConfig? _recordedHotkey;
+    private string _lucideColor = LucidePalette.Auto;
 
     private TileEditWindow(
         IconResolver iconResolver,
@@ -189,6 +191,8 @@ public sealed partial class TileEditWindow : Window
             IconValueBox.Text = iconType is "app" or "svg"
                 ? existing?.Icon.Path ?? string.Empty
                 : existing?.Icon.Name ?? "circle";
+            _lucideColor = LucidePalette.Normalize(existing?.Icon.Color);
+            BuildLucideColorSwatches();
 
             var actionType = existing?.Action.Type?.ToLowerInvariant() ?? "shell";
             ActionTypeBox.SelectedItem = actionType;
@@ -348,6 +352,7 @@ public sealed partial class TileEditWindow : Window
     {
         var type = (IconTypeBox.SelectedItem as string ?? "lucide").ToLowerInvariant();
         BrowseButton.Visibility = type is "app" or "svg" ? Visibility.Visible : Visibility.Collapsed;
+        LucideColorPanel.Visibility = type == "lucide" ? Visibility.Visible : Visibility.Collapsed;
         IconValueBox.Header = type switch
         {
             "app" => "App path / executable",
@@ -435,7 +440,52 @@ public sealed partial class TileEditWindow : Window
                 ? (string.IsNullOrWhiteSpace(iconValue) ? "circle" : iconValue)
                 : null,
             Path = iconType is "app" or "svg" ? iconValue : null,
+            Color = iconType == "lucide" ? _lucideColor : null,
         };
+    }
+
+    private void BuildLucideColorSwatches()
+    {
+        LucideColorHost.Children.Clear();
+        var selected = LucidePalette.Swatches.FirstOrDefault(s => s.Id == _lucideColor)
+            ?? LucidePalette.Swatches[0];
+        LucideColorValue.Text = selected.Label;
+        var autoHex = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Light
+            ? "#2B2B2B"
+            : "#F2F2F2";
+
+        foreach (var swatch in LucidePalette.Swatches)
+        {
+            var captured = swatch;
+            var hex = string.IsNullOrEmpty(swatch.Hex) ? autoHex : swatch.Hex;
+            var color = Color.FromArgb(255, 242, 242, 242);
+            if (LucidePalette.TryParseRgb(hex, out var r, out var g, out var b))
+            {
+                color = Color.FromArgb(255, r, g, b);
+            }
+
+            var button = new Button
+            {
+                Width = 24,
+                Height = 24,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(12),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(_lucideColor == swatch.Id ? 2 : 1),
+                BorderBrush = new SolidColorBrush(
+                    _lucideColor == swatch.Id
+                        ? Color.FromArgb(255, 96, 205, 255)
+                        : Color.FromArgb(80, 255, 255, 255)),
+            };
+            ToolTipService.SetToolTip(button, swatch.Label);
+            button.Click += (_, _) =>
+            {
+                _lucideColor = captured.Id;
+                BuildLucideColorSwatches();
+                SchedulePreviewRefresh();
+            };
+            LucideColorHost.Children.Add(button);
+        }
     }
 
     private async void BrowseButton_Click(object sender, RoutedEventArgs e)

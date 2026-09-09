@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fast Action overlay mock</title>
+  <style>
+    :root {
+      --tile: 88px;
+      --radius: 12px;
+      --gap: 8px;
+      --text: #ffffff;
+      --muted: rgba(255,255,255,.72);
+      --faint: rgba(255,255,255,.42);
+      --tile-bg: rgba(255,255,255,.08);
+      --tile-border: rgba(255,255,255,.08);
+      --accent: #60cdff;
+      --accent-fg: #001a2e;
+      --card: rgba(32,32,32,.72);
+      --stroke: rgba(255,255,255,.12);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: "Segoe UI", "Segoe UI Variable", system-ui, sans-serif;
+      color: var(--text);
+    }
+    body {
+      background:
+        radial-gradient(1200px 700px at 20% 10%, #355a7c 0%, transparent 55%),
+        radial-gradient(900px 600px at 90% 80%, #1b3a2f 0%, transparent 50%),
+        #1a1a1a;
+      display: grid;
+      place-items: center;
+    }
+    .overlay {
+      background: linear-gradient(180deg, rgba(44,44,44,.72), rgba(28,28,28,.78));
+      backdrop-filter: blur(40px) saturate(1.4);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 8px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+      padding: 0 0 8px;
+      width: max-content;
+    }
+    .menu {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 8px 0;
+      height: 40px;
+    }
+    .menu-left { display: flex; gap: 2px; position: relative; }
+    .menu-item {
+      background: transparent;
+      border: 0;
+      color: var(--text);
+      font: 600 13px/1 "Segoe UI", system-ui, sans-serif;
+      padding: 6px 12px;
+      border-radius: 4px;
+      position: relative;
+    }
+    .menu-item.active, .menu-item:hover { background: rgba(255,255,255,.08); }
+    .menu-right { display: flex; gap: 4px; }
+    .icon-btn {
+      width: 32px; height: 28px;
+      border: 0; border-radius: 4px;
+      background: transparent; color: var(--text);
+      display: grid; place-items: center;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,.08); }
+    .flyout {
+      position: absolute;
+      top: 34px; left: 0;
+      min-width: 188px;
+      background: #2c2c2c;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      box-shadow: 0 12px 32px rgba(0,0,0,.4);
+      padding: 6px;
+      z-index: 5;
+    }
+    .flyout.sub {
+      left: 188px;
+      top: 0;
+    }
+    .fly-item, .fly-check {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 7px 10px;
+      font-size: 13px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .fly-item:hover, .fly-check:hover { background: rgba(255,255,255,.08); }
+    .chev { opacity: .7; font-size: 10px; }
+    .sep { height: 1px; background: rgba(255,255,255,.12); margin: 4px 6px; }
+    .check { color: var(--accent); width: 16px; }
+    .settings {
+      margin: 8px 12px 0;
+      padding: 12px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+    }
+    .settings-top {
+      display: grid;
+      grid-template-columns: 1fr 168px;
+      gap: 16px;
+    }
+    .caption {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .02em;
+      margin-bottom: 4px;
+    }
+    .hint { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .origin { display: flex; flex-direction: column; gap: 3px; }
+    .origin-row { display: flex; gap: 3px; }
+    .okey {
+      width: 26px; height: 26px;
+      border-radius: 4px;
+      border: 0;
+      font: 600 11px/26px "Segoe UI", system-ui, sans-serif;
+      text-align: center;
+      color: var(--text);
+      background: rgba(255,255,255,.08);
+      opacity: .45;
+    }
+    .okey.in { opacity: 1; background: rgba(96,205,255,.22); }
+    .okey.origin {
+      opacity: 1;
+      background: var(--accent);
+      color: var(--accent-fg);
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .num, .combo {
+      width: 100%;
+      height: 32px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.28);
+      color: var(--text);
+      padding: 0 8px;
+      font: 13px "Segoe UI", system-ui, sans-serif;
+      margin-bottom: 10px;
+    }
+    .appear { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--stroke); }
+    .appear-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .tiny { font-size: 11px; margin-bottom: 4px; }
+    .grid {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--gap);
+      margin: 12px 12px 16px;
+    }
+    .row { display: flex; gap: var(--gap); }
+    .tile {
+      width: var(--tile);
+      height: var(--tile);
+      border-radius: var(--radius);
+      background: var(--tile-bg);
+      border: 1px solid var(--tile-border);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 16px 4px 8px;
+    }
+    .tile.empty { opacity: .35; }
+    .key {
+      position: absolute;
+      top: 5px; left: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      opacity: .7;
+    }
+    .app, .lucide {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+    }
+    .app {
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,.35);
+    }
+    .app svg, .lucide svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .app.filled svg { fill: currentColor; stroke: none; }
+    .lucide { background: transparent; color: var(--lucide, #f2f2f2); }
+    .name {
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1.15;
+      max-width: 76px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: .92;
+    }
+    .acrylic-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .switch {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .knob {
+      width: 40px;
+      height: 20px;
+      border-radius: 10px;
+      background: var(--accent);
+      position: relative;
+    }
+    .knob::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .slider {
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, rgba(255,255,255,.2) 0%, var(--accent) 80%, var(--accent) 100%);
+      position: relative;
+      margin: 10px 0 4px;
+    }
+    .slider::after {
+      content: "";
+      position: absolute;
+      top: -6px;
+      left: 72%;
+      width: 16px;
+      height: 16px;
+      border-radius: 8px;
+      background: var(--accent);
+    }
+    .swatches { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      border: 1px solid rgba(255,255,255,.25);
+    }
+    .swatch.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+  </style>
+</head>
+<body>
+  <div class="overlay" id="overlay">
+    <div class="menu">
+      <div class="menu-left">
+        <button class="menu-item" id="gridBtn">Grid</button>
+        <button class="menu-item">Appearance</button>
+        <div class="flyout" id="gridFly" hidden>
+          <div class="fly-item">Size <span class="chev">▸</span></div>
+          <div class="fly-item">Start at <span class="chev">▸</span></div>
+          <div class="flyout sub" id="sizeFly" hidden>
+            <div class="fly-check"><span>3 × 3</span></div>
+            <div class="fly-check"><span>3 × 4</span></div>
+            <div class="fly-check"><span class="check">●</span> 4 × 4</div>
+            <div class="fly-check"><span>4 × 5</span></div>
+            <div class="fly-check"><span>4 × 6</span></div>
+            <div class="fly-check"><span>Full width</span></div>
+            <div class="sep"></div>
+            <div class="fly-item">Custom…</div>
+          </div>
+        </div>
+      </div>
+      <div class="menu-right">
+        <button class="icon-btn" title="Settings" aria-label="Settings">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <button class="icon-btn" title="Close" aria-label="Close">
+          <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4"><path d="M2 2l8 8M10 2L2 10"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="settings" id="settings" hidden>
+      <div class="settings-top">
+        <div>
+          <div class="caption">Start at</div>
+          <div class="hint" id="originHint">Top-left is 1. Highlight shows the 4×4 slice.</div>
+          <div class="origin" id="origin"></div>
+        </div>
+        <div>
+          <div class="caption">Matrix size</div>
+          <div class="field"><label>Columns</label><input class="num" id="colsBox" value="4" readonly></div>
+          <div class="field"><label>Rows</label><input class="num" id="rowsBox" value="4" readonly></div>
+        </div>
+      </div>
+      <div class="appear">
+        <div class="caption">Appearance</div>
+        <div class="appear-row">
+          <div><div class="tiny">Theme</div><select class="combo"><option>System</option><option>Light</option><option>Dark</option></select></div>
+          <div><div class="tiny">Tiles</div><select class="combo"><option>Compact</option><option selected>Default</option><option>Large</option></select></div>
+          <div><div class="tiny">Corners</div><select class="combo"><option>Sharp</option><option selected>Rounded</option><option>Pill</option></select></div>
+        </div>
+        <div class="acrylic-row">
+          <div>
+            <div class="tiny">Acrylic</div>
+            <div class="switch"><span class="knob"></span> On</div>
+            <div class="tiny">Opacity  80%</div>
+            <div class="slider"></div>
+          </div>
+          <div>
+            <div class="tiny">Blur</div>
+            <select class="combo"><option selected>Standard</option><option>Soft</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </div>
+  <script>
+    const ITEMS = {
+      "1": { name: "Chrome", color: "#4285F4", svg: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="#fff" stroke="none"/>' },
+      "2": { name: "Slack", color: "#4A154B", svg: '<path d="M8 8h3v3H8zM13 8h3v3h-3zM8 13h3v3H8zM13 13h3v3h-3z"/>' },
+      "3": { name: "Spotify", color: "#1DB954", svg: '<circle cx="12" cy="12" r="9"/><path d="M7 10c3-1.4 7-1.4 10 0M8 13c2.4-1 5.6-1 8 0M9 16c1.6-.6 4.4-.6 6 0" stroke="#fff"/>' },
+      "4": { name: "Outlook", color: "#0078D4", svg: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 8l8 6 8-6"/>' },
+      Q: { name: "Notepad", color: "#2B579A", svg: '<rect x="6" y="3" width="12" height="18" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h4"/>' },
+      W: { name: "Dev tools", lucide: true, stroke: "#FF8C42", svg: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-8.26 7.06l-7.91 7.91a1 1 0 0 1-3-3l7.91-7.91A6 6 0 0 1 17.8 4.2z"/>' },
+      E: { name: "Explorer", lucide: true, stroke: "#F8D347", svg: '<path d="M3 8h6l2 2h10v9H3z"/><path d="M3 8V6h6l2 2"/>' },
+      R: { name: "Terminal", color: "#0C0C0C", svg: '<path d="M5 9l4 3-4 3"/><path d="M11 15h8"/>' },
+      A: { name: "Terminal", lucide: true, stroke: "#6CCB5F", svg: '<path d="M5 9l4 3-4 3"/><path d="M11 15h8"/>' },
+      S: { name: "Settings", lucide: true, stroke: "#60CDFF", svg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
+      D: { name: "Code", lucide: true, stroke: "#B4A0FF", svg: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>' },
+      F: { name: "Files", color: "#FFB900", svg: '<path d="M3 8h6l2 2h10v9H3z"/><path d="M3 8V6h6l2 2"/>' },
+      Z: { name: "Calc", color: "#C50500", svg: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h2m4 0h2M8 16h2m4 0h2"/>' },
+      X: { name: "GitHub", color: "#181717", svg: '<path d="M12 3a9 9 0 0 0-2.8 17.5c.4.07.6-.17.6-.38v-1.4c-2.3.5-2.8-1-2.8-1-.4-.9-1-1.2-1-1.2-.8-.5.06-.5.06-.5.9.06 1.4.94 1.4.94.8 1.4 2.1 1 2.6.76.08-.6.3-1 .55-1.23-2-.23-4.1-1-4.1-4.45 0-1 .35-1.8.94-2.44-.1-.23-.4-1.16.08-2.42 0 0 .77-.25 2.5.93A8.7 8.7 0 0 1 12 7.5c.78 0 1.56.1 2.3.3 1.74-1.18 2.5-.93 2.5-.93.49 1.26.18 2.2.09 2.42.58.64.93 1.45.93 2.44 0 3.46-2.1 4.22-4.1 4.44.32.28.6.82.6 1.66v2.46c0 .21.19.46.6.38A9 9 0 0 0 12 3z" fill="#fff" stroke="none"/>' },
+      C: { name: "Edge", color: "#0078D7", svg: '<path d="M12 4a8 8 0 1 0 7.5 10.5C18 9 12 8 8 11c2-4 8-5 11-1.5A8 8 0 0 0 12 4z"/>' },
+      V: { name: "Cursor", color: "#000000", svg: '<path d="M5 4l14 8-7 1-3 7z"/>' },
+    };
+    const PHYSICAL = [
+      ["1","2","3","4","5","6","7","8","9","0"],
+      ["Q","W","E","R","T","Y","U","I","O","P"],
+      ["A","S","D","F","G","H","J","K","L"],
+      ["Z","X","C","V","B","N","M"]
+    ];
+    const params = new URLSearchParams(location.search);
+    const view = params.get("view") || "overlay";
+    const start = params.get("start") || "1";
+    const cols = Number(params.get("cols") || 4);
+    const rows = Number(params.get("rows") || 4);
+
+    function findKey(key) {
+      for (let r = 0; r < PHYSICAL.length; r++) {
+        const c = PHYSICAL[r].indexOf(key);
+        if (c >= 0) return [r, c];
+      }
+      return [0, 0];
+    }
+    function buildSlice() {
+      const [or, oc] = findKey(start);
+      const out = [];
+      for (let r = 0; r < rows; r++) {
+        const sr = or + r;
+        if (sr >= PHYSICAL.length || oc >= PHYSICAL[sr].length) break;
+        out.push(PHYSICAL[sr].slice(oc, oc + cols));
+      }
+      return out;
+    }
+    function badge(item) {
+      if (item.lucide) {
+        return `<div class="lucide" style="--lucide:${item.stroke}"><svg viewBox="0 0 24 24">${item.svg}</svg></div><span class="name">${item.name}</span>`;
+      }
+      const filled = item.svg.includes('fill="#fff"') || item.color === "#181717" || item.color === "#000000" ? " filled" : "";
+      return `<div class="app${filled}" style="background:${item.color}"><svg viewBox="0 0 24 24">${item.svg}</svg></div><span class="name">${item.name}</span>`;
+    }
+    const slice = buildSlice();
+    const grid = document.getElementById("grid");
+    for (const row of slice) {
+      const el = document.createElement("div");
+      el.className = "row";
+      for (const key of row) {
+        const item = ITEMS[key];
+        const tile = document.createElement("div");
+        tile.className = "tile" + (item ? "" : " empty");
+        tile.innerHTML = `<span class="key">${key}</span>${item ? badge(item) : ""}`;
+        el.appendChild(tile);
+      }
+      grid.appendChild(el);
+    }
+
+    const [or, oc] = findKey(start);
+    const origin = document.getElementById("origin");
+    for (let r = 0; r < PHYSICAL.length; r++) {
+      const row = document.createElement("div");
+      row.className = "origin-row";
+      for (let c = 0; c < PHYSICAL[r].length; c++) {
+        const b = document.createElement("button");
+        b.className = "okey";
+        b.textContent = PHYSICAL[r][c];
+        const localRow = r >= or ? slice[r - or] : null;
+        const inSlice = !!localRow && c >= oc && c < oc + localRow.length;
+        if (PHYSICAL[r][c] === start) b.classList.add("origin");
+        else if (inSlice) b.classList.add("in");
+        row.appendChild(b);
+      }
+      origin.appendChild(row);
+    }
+    document.getElementById("originHint").textContent =
+      `Top-left is ${start}. Highlight shows the ${cols}×${rows} slice.`;
+    document.getElementById("colsBox").value = String(cols);
+    document.getElementById("rowsBox").value = String(rows);
+
+    if (view === "settings") document.getElementById("settings").hidden = false;
+    if (view === "grid-menu") {
+      document.getElementById("gridBtn").classList.add("active");
+      document.getElementById("gridFly").hidden = false;
+      document.getElementById("sizeFly").hidden = false;
+    }
+  </script>
+</body>
+</html>

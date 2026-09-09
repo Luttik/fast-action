@@ -19,15 +19,16 @@ public sealed class IconResolver
         _configDirectory = configDirectory;
     }
 
-    public async Task<ImageSource?> ResolveAsync(IconConfig? icon)
+    public async Task<ImageSource?> ResolveAsync(IconConfig? icon, string? defaultLucideColor = null, bool darkTheme = true)
     {
         if (icon is null)
         {
-            return await ResolveLucideAsync("circle");
+            return await ResolveLucideAsync("circle", defaultLucideColor, darkTheme);
         }
 
         var type = string.IsNullOrWhiteSpace(icon.Type) ? "lucide" : icon.Type;
-        var cacheKey = $"{type}|{icon.Path}|{icon.Name}";
+        var color = LucidePalette.Normalize(icon.Color ?? defaultLucideColor);
+        var cacheKey = $"{type}|{icon.Path}|{icon.Name}|{color}|{(darkTheme ? "d" : "l")}";
         if (_cache.TryGetValue(cacheKey, out var cached))
         {
             return cached;
@@ -36,9 +37,9 @@ public sealed class IconResolver
         ImageSource? source = type.ToLowerInvariant() switch
         {
             "app" => await ResolveAppIconAsync(icon.Path),
-            "lucide" => await ResolveLucideAsync(icon.Name),
+            "lucide" => await ResolveLucideAsync(icon.Name, color, darkTheme),
             "svg" => await ResolveSvgAsync(icon.Path),
-            _ => await ResolveLucideAsync("circle"),
+            _ => await ResolveLucideAsync("circle", color, darkTheme),
         };
 
         if (source is not null)
@@ -51,7 +52,7 @@ public sealed class IconResolver
 
     public void ClearCache() => _cache.Clear();
 
-    private static async Task<ImageSource?> ResolveLucideAsync(string? name)
+    private static async Task<ImageSource?> ResolveLucideAsync(string? name, string? colorId, bool darkTheme)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -72,7 +73,10 @@ public sealed class IconResolver
             return null;
         }
 
-        return await OpenSvgAsync(path);
+        var hex = LucidePalette.ResolveHex(colorId, darkTheme);
+        var svgText = await File.ReadAllTextAsync(path);
+        svgText = TintSvg(svgText, hex);
+        return await OpenSvgTextAsync(svgText);
     }
 
     private async Task<ImageSource?> ResolveSvgAsync(string? path)
@@ -92,6 +96,45 @@ public sealed class IconResolver
         }
 
         return await OpenSvgAsync(fullPath);
+    }
+
+    private static string TintSvg(string svgText, string hex)
+    {
+        return svgText
+            .Replace("stroke=\"#888888\"", $"stroke=\"{hex}\"", StringComparison.OrdinalIgnoreCase)
+            .Replace("stroke='#888888'", $"stroke='{hex}'", StringComparison.OrdinalIgnoreCase)
+            .Replace("stroke=\"currentColor\"", $"stroke=\"{hex}\"", StringComparison.OrdinalIgnoreCase)
+            .Replace("stroke='currentColor'", $"stroke='{hex}'", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<ImageSource?> OpenSvgTextAsync(string svgText)
+    {
+        try
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(svgText);
+            var ras = new InMemoryRandomAccessStream();
+            using (var writer = new DataWriter(ras.GetOutputStreamAt(0)))
+            {
+                writer.WriteBytes(bytes);
+                await writer.StoreAsync();
+                await writer.FlushAsync();
+                writer.DetachStream();
+            }
+
+            ras.Seek(0);
+            var svg = new SvgImageSource
+            {
+                RasterizePixelWidth = 96,
+                RasterizePixelHeight = 96,
+            };
+            var status = await svg.SetSourceAsync(ras);
+            return status == SvgImageSourceLoadStatus.Success ? svg : null;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"SVG tint open failed: {ex.Message}");
+            return null;
+        }
     }
 
     private static async Task<ImageSource?> OpenSvgAsync(string fullPath)

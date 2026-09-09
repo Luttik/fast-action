@@ -12,7 +12,77 @@ public sealed class AppConfig
     /// <summary>When true, register the app to launch automatically at Windows sign-in.</summary>
     public bool RunOnStartup { get; set; } = true;
 
+    public LayoutConfig Layout { get; set; } = new();
+
+    public AppearanceConfig Appearance { get; set; } = new();
+
     public List<GridConfig> Grids { get; set; } = [];
+}
+
+public sealed class LayoutConfig
+{
+    /// <summary>Physical key at the top-left of the overlay grid (e.g. 1, Q, A).</summary>
+    public string StartKey { get; set; } = "1";
+
+    public int Columns { get; set; } = 4;
+
+    public int Rows { get; set; } = 4;
+}
+
+public sealed class AppearanceConfig
+{
+    public const int CompactTileSize = 72;
+    public const int DefaultTileSize = 88;
+    public const int LargeTileSize = 112;
+
+    public const int SharpCornerRadius = 4;
+    public const int RoundedCornerRadius = 12;
+    public const int PillCornerRadius = 22;
+
+    /// <summary>system | light | dark</summary>
+    public string Theme { get; set; } = "system";
+
+    public int TileSize { get; set; } = DefaultTileSize;
+
+    public int CornerRadius { get; set; } = RoundedCornerRadius;
+
+    /// <summary>When true, use Desktop Acrylic (Windows Terminal-style frosted glass).</summary>
+    public bool Acrylic { get; set; } = true;
+
+    /// <summary>Background opacity 20–100, like Windows Terminal. Higher is more solid.</summary>
+    public int Opacity { get; set; } = 80;
+
+    /// <summary>standard | soft (thin acrylic).</summary>
+    public string AcrylicBlur { get; set; } = "standard";
+
+    public static string NormalizeTheme(string? theme) =>
+        (theme ?? "system").Trim().ToLowerInvariant() switch
+        {
+            "light" => "light",
+            "dark" => "dark",
+            _ => "system",
+        };
+
+    public static int NormalizeTileSize(int tileSize) =>
+        tileSize switch
+        {
+            CompactTileSize => CompactTileSize,
+            LargeTileSize => LargeTileSize,
+            _ => DefaultTileSize,
+        };
+
+    public static int NormalizeCornerRadius(int cornerRadius) =>
+        cornerRadius switch
+        {
+            SharpCornerRadius => SharpCornerRadius,
+            PillCornerRadius => PillCornerRadius,
+            _ => RoundedCornerRadius,
+        };
+
+    public static int NormalizeOpacity(int opacity) => Math.Clamp(opacity, 20, 100);
+
+    public static string NormalizeAcrylicBlur(string? blur) =>
+        (blur ?? "standard").Trim().ToLowerInvariant() == "soft" ? "soft" : "standard";
 }
 
 public sealed class HotkeyConfig
@@ -50,6 +120,9 @@ public sealed class IconConfig
     public string? Path { get; set; }
 
     public string? Name { get; set; }
+
+    /// <summary>Lucide palette id (auto, blue, green, …). Ignored for app/svg icons.</summary>
+    public string? Color { get; set; }
 }
 
 public sealed class ActionConfig

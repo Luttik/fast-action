@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
     {
         var flyout = new MenuFlyout();
         flyout.Items.Add(CreateMenuItem("Open overlay", (_, _) => ShowOverlay()));
+        flyout.Items.Add(CreateMenuItem("Settings", (_, _) => _overlay?.ShowOverlaySettings()));
         flyout.Items.Add(CreateMenuItem("Open config folder", (_, _) => _configService.OpenConfigFolder()));
         flyout.Items.Add(CreateMenuItem("Reload config", (_, _) =>
         {

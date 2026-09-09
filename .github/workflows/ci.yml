@@ -30,6 +30,20 @@ jobs:
       - name: Build
         run: dotnet build src/FastAction/FastAction.csproj -c Release -p:Platform=${{ matrix.platform }} -r win-${{ matrix.platform }} --no-restore
 
+  tests:
+    name: Test (layout)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Test
+        run: dotnet test src/FastAction.Tests/FastAction.Tests.csproj -c Release
+
   dotnet-format:
     name: Lint (dotnet format)
     runs-on: windows-latest
