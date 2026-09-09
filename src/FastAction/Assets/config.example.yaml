@@ -15,7 +15,6 @@ appearance:
   acrylic: true
   opacity: 80      # 20–100, like Windows Terminal
   acrylicBlur: standard  # standard | soft
-  lucideColor: auto      # default Lucide tint
 grids:
   - id: home
     title: Home

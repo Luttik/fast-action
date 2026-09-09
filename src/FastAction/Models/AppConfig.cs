@@ -55,9 +55,6 @@ public sealed class AppearanceConfig
     /// <summary>standard | soft (thin acrylic).</summary>
     public string AcrylicBlur { get; set; } = "standard";
 
-    /// <summary>Default Lucide tint when a tile does not set <c>icon.color</c>.</summary>
-    public string LucideColor { get; set; } = LucidePalette.Auto;
-
     public static string NormalizeTheme(string? theme) =>
         (theme ?? "system").Trim().ToLowerInvariant() switch
         {

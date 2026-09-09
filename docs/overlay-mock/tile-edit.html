@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fast Action shortcut settings mock</title>
+  <style>
+    :root {
+      --text: #ffffff;
+      --muted: rgba(255,255,255,.72);
+      --faint: rgba(255,255,255,.42);
+      --accent: #60cdff;
+      --accent-fg: #001a2e;
+      --stroke: rgba(255,255,255,.12);
+      --field: rgba(0,0,0,.28);
+      --orange: #FF8C42;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: "Segoe UI", "Segoe UI Variable", system-ui, sans-serif;
+      color: var(--text);
+    }
+    body {
+      background:
+        radial-gradient(1200px 700px at 20% 10%, #355a7c 0%, transparent 55%),
+        radial-gradient(900px 600px at 90% 80%, #1b3a2f 0%, transparent 50%),
+        #1a1a1a;
+      display: grid;
+      place-items: center;
+    }
+    .editor {
+      width: 440px;
+      background: linear-gradient(180deg, rgba(44,44,44,.92), rgba(28,28,28,.94));
+      backdrop-filter: blur(40px) saturate(1.4);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 8px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+      padding: 20px;
+    }
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .preview {
+      width: 72px;
+      height: 72px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,.06);
+      display: grid;
+      place-items: center;
+    }
+    .preview svg {
+      width: 40px;
+      height: 40px;
+      stroke: var(--orange);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .title { font-size: 20px; font-weight: 600; }
+    .key, .status { font-size: 12px; color: var(--muted); }
+    .status { color: var(--faint); margin-top: 2px; }
+    .field { margin-bottom: 12px; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .hint { font-size: 11px; color: var(--muted); margin: 0 0 6px; font-weight: 400; }
+    input, select {
+      width: 100%;
+      height: 32px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: var(--field);
+      color: var(--text);
+      padding: 0 8px;
+      font: 13px "Segoe UI", system-ui, sans-serif;
+    }
+    .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.25);
+    }
+    .swatch.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .selected-name { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    button {
+      height: 32px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 0 14px;
+      font: 600 13px "Segoe UI", system-ui, sans-serif;
+    }
+    button.accent {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: transparent;
+    }
+    button.ghost { justify-self: start; }
+  </style>
+</head>
+<body>
+  <div class="editor" id="editor">
+    <div class="titlebar">
+      <div class="preview" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-8.26 7.06l-7.91 7.91a1 1 0 0 1-3-3l7.91-7.91A6 6 0 0 1 17.8 4.2z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="title">Edit action</div>
+        <div class="key">Key W</div>
+        <div class="status">Preview · lucide</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Name</label>
+      <input value="Dev tools" readonly>
+    </div>
+    <div class="field">
+      <label>Icon type</label>
+      <select disabled>
+        <option selected>lucide</option>
+        <option>app</option>
+        <option>svg</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Lucide icon name</label>
+      <input value="wrench" readonly>
+    </div>
+    <div class="field">
+      <label>Lucide color</label>
+      <p class="hint">Tints this shortcut’s icon.</p>
+      <div class="swatches" id="swatches"></div>
+      <div class="selected-name">Orange</div>
+    </div>
+    <div class="field">
+      <label>Action type</label>
+      <select disabled>
+        <option>shell</option>
+        <option selected>grid</option>
+        <option>hotkey</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Command</label>
+      <input value="devtools" readonly>
+    </div>
+
+    <div class="actions">
+      <button class="ghost">Clear</button>
+      <button>Cancel</button>
+      <button class="accent">Save</button>
+    </div>
+  </div>
+  <script>
+    const palette = [
+      ["auto", "#F2F2F2"],
+      ["white", "#F5F5F5"],
+      ["slate", "#9AA4B2"],
+      ["blue", "#60CDFF"],
+      ["green", "#6CCB5F"],
+      ["amber", "#F8D347"],
+      ["orange", "#FF8C42"],
+      ["pink", "#FF7AA2"],
+      ["purple", "#B4A0FF"],
+      ["red", "#FF6B6B"],
+    ];
+    const host = document.getElementById("swatches");
+    for (const [id, hex] of palette) {
+      const d = document.createElement("div");
+      d.className = "swatch" + (id === "orange" ? " selected" : "");
+      d.style.background = hex;
+      d.title = id;
+      host.appendChild(d);
+    }
+  </script>
+</body>
+</html>

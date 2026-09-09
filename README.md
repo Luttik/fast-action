@@ -15,6 +15,10 @@ A PowerToys-inspired Windows keyboard overlay. Press a global hotkey to open a Q
   <img src="docs/screenshots/overlay-settings.png" alt="Overlay settings pane" width="420" />
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/overlay-tile-edit.png" alt="Shortcut editor with Lucide color palette" width="360" />
+</p>
+
 ## Requirements
 
 - Windows 10 1809+ / Windows 11
@@ -96,7 +100,6 @@ appearance:
   acrylic: true             # Windows Terminal-style frosted glass
   opacity: 80               # 20–100 (higher = more solid)
   acrylicBlur: standard     # standard | soft
-  lucideColor: auto         # default Lucide tint
 grids:
   - id: home
     title: Home
@@ -153,7 +156,7 @@ The overlay is a rectangular slice of the US QWERTY map. `layout.startKey` is th
 
 `startKey: Q` with 3×3 is the letter core (`Q W E` / `A S D` / `Z X C`). Keys outside the current slice stay in `config.yaml` and come back if you enlarge the grid later.
 
-The overlay **Grid** and **Appearance** menus (and the gear on the overlay) write these values live. **Appearance → Acrylic** toggles Desktop Acrylic, sets opacity (20–100, like Windows Terminal), and chooses standard vs soft blur. **Lucide color** tints stroke icons; a tile can override that with `icon.color`. Empty slots stay blank. Esc pops a nested grid or closes at root. Backspace pops when nested.
+The overlay **Grid** and **Appearance** menus (and the gear on the overlay) write these values live. **Appearance → Acrylic** toggles Desktop Acrylic, sets opacity (20–100, like Windows Terminal), and chooses standard vs soft blur. Right-click a tile to edit that shortcut; **Lucide color** tints that tile’s stroke icon (`icon.color`). Empty slots stay blank. Esc pops a nested grid or closes at root. Backspace pops when nested.
 
 Values with colons (protocol handlers like `ms-settings:`) must be quoted in YAML:
 
@@ -165,7 +168,7 @@ command: "ms-settings:"
 | Type     | Fields                         | Notes                                      |
 | -------- | ------------------------------ | ------------------------------------------ |
 | `app`    | `path`                         | `.exe` / `.lnk`; icon extracted via Shell  |
-| `lucide` | `name`, optional `color`       | Full Lucide set under `Assets/Icons/lucide/` (e.g. `wrench`, `file`). `color` is a palette id (`auto`, `blue`, `orange`, …) or falls back to `appearance.lucideColor`. |
+| `lucide` | `name`, optional `color`       | Full Lucide set under `Assets/Icons/lucide/` (e.g. `wrench`, `file`). `color` is a palette id (`auto`, `blue`, `orange`, …); pick it in the shortcut editor. |
 | `svg`    | `path`                         | Custom SVG on disk                         |
 
 Browse names at [lucide.dev/icons](https://lucide.dev/icons). To refresh the bundled set:

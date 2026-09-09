@@ -447,10 +447,17 @@ public sealed partial class TileEditWindow : Window
     private void BuildLucideColorSwatches()
     {
         LucideColorHost.Children.Clear();
+        var selected = LucidePalette.Swatches.FirstOrDefault(s => s.Id == _lucideColor)
+            ?? LucidePalette.Swatches[0];
+        LucideColorValue.Text = selected.Label;
+        var autoHex = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Light
+            ? "#2B2B2B"
+            : "#F2F2F2";
+
         foreach (var swatch in LucidePalette.Swatches)
         {
             var captured = swatch;
-            var hex = string.IsNullOrEmpty(swatch.Hex) ? "#F2F2F2" : swatch.Hex;
+            var hex = string.IsNullOrEmpty(swatch.Hex) ? autoHex : swatch.Hex;
             var color = Color.FromArgb(255, 242, 242, 242);
             if (LucidePalette.TryParseRgb(hex, out var r, out var g, out var b))
             {
@@ -459,10 +466,10 @@ public sealed partial class TileEditWindow : Window
 
             var button = new Button
             {
-                Width = 22,
-                Height = 22,
+                Width = 24,
+                Height = 24,
                 Padding = new Thickness(0),
-                CornerRadius = new CornerRadius(11),
+                CornerRadius = new CornerRadius(12),
                 Background = new SolidColorBrush(color),
                 BorderThickness = new Thickness(_lucideColor == swatch.Id ? 2 : 1),
                 BorderBrush = new SolidColorBrush(

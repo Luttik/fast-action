@@ -99,12 +99,21 @@
                     x:Name="LucideColorPanel"
                     Spacing="6">
                     <TextBlock
-                        FontSize="12"
+                        Style="{StaticResource CaptionTextBlockStyle}"
                         Text="Lucide color" />
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="Tints this shortcut’s icon." />
                     <StackPanel
                         x:Name="LucideColorHost"
                         Orientation="Horizontal"
                         Spacing="6" />
+                    <TextBlock
+                        x:Name="LucideColorValue"
+                        FontSize="11"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="Auto" />
                 </StackPanel>
 
                 <ComboBox
