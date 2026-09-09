@@ -427,8 +427,8 @@ public sealed partial class OverlayWindow : Window
 
         _acrylicController.TintColor = baseColor;
         _acrylicController.FallbackColor = baseColor;
-        _acrylicController.TintOpacity = opacity;
-        _acrylicController.LuminosityOpacity = Math.Clamp(opacity + 0.05, 0.2, 1.0);
+        _acrylicController.TintOpacity = (float)opacity;
+        _acrylicController.LuminosityOpacity = (float)Math.Clamp(opacity + 0.05, 0.2, 1.0);
         _acrylicController.Kind = AppearanceConfig.NormalizeAcrylicBlur(appearance.AcrylicBlur) == "soft"
             ? DesktopAcrylicKind.Thin
             : DesktopAcrylicKind.Default;
