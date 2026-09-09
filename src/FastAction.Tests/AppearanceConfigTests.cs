@@ -24,4 +24,23 @@ public sealed class AppearanceConfigTests
     {
         Assert.Equal(expected, AppearanceConfig.NormalizeTileSize(input));
     }
+
+    [Theory]
+    [InlineData(10, 20)]
+    [InlineData(80, 80)]
+    [InlineData(100, 100)]
+    [InlineData(140, 100)]
+    public void NormalizeOpacity(int input, int expected)
+    {
+        Assert.Equal(expected, AppearanceConfig.NormalizeOpacity(input));
+    }
+
+    [Theory]
+    [InlineData(null, "standard")]
+    [InlineData("SOFT", "soft")]
+    [InlineData("thin", "standard")]
+    public void NormalizeAcrylicBlur(string? input, string expected)
+    {
+        Assert.Equal(expected, AppearanceConfig.NormalizeAcrylicBlur(input));
+    }
 }

@@ -8,8 +8,10 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.Foundation;
 using Windows.Graphics;
 using Windows.System;
+using Windows.UI;
 using WinRT;
 using WinRT.Interop;
 
@@ -35,6 +37,7 @@ public sealed partial class OverlayWindow : Window
     private PointInt32 _dragStartCursor;
     private PointInt32 _dragStartWindow;
     private DispatcherTimer? _statusTimer;
+    private DispatcherTimer? _opacitySaveTimer;
     private bool _suppressSettingsEvents;
     private bool _settingsOpen;
 
@@ -53,13 +56,18 @@ public sealed partial class OverlayWindow : Window
 
         InitializeComponent();
         ConfigureWindow();
-        TrySetAcrylicBackdrop();
+        ApplyBackdrop();
         _themeService.Attach(this, () => _configService.Config.Appearance?.Theme ?? "system");
         RootGrid.Loaded += (_, _) =>
         {
             TryFocusOverlay();
             SyncSettingsPane();
             RebuildMenus();
+        };
+        RootGrid.ActualThemeChanged += (_, _) =>
+        {
+            SetConfigurationSourceTheme();
+            ApplyBackdrop();
         };
         RootGrid.PointerPressed += RootGrid_PointerPressed;
         RootGrid.PointerMoved += RootGrid_PointerMoved;
@@ -153,6 +161,8 @@ public sealed partial class OverlayWindow : Window
                 or NumberBox
                 or RepeatButton
                 or ToggleButton
+                or ToggleSwitch
+                or Slider
                 or TextBox)
             {
                 return true;
@@ -381,31 +391,62 @@ public sealed partial class OverlayWindow : Window
         Closed += OnClosed;
     }
 
-    private bool TrySetAcrylicBackdrop()
+    private void ApplyBackdrop()
     {
-        if (!DesktopAcrylicController.IsSupported())
+        var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
+        var dark = IsDarkTheme();
+        var baseColor = dark ? Color.FromArgb(255, 32, 32, 32) : Color.FromArgb(255, 243, 243, 243);
+        var opacity = AppearanceConfig.NormalizeOpacity(appearance.Opacity) / 100.0;
+        var useAcrylic = appearance.Acrylic && DesktopAcrylicController.IsSupported();
+
+        if (!useAcrylic)
         {
-            SystemBackdrop = new DesktopAcrylicBackdrop();
+            _acrylicController?.Dispose();
+            _acrylicController = null;
+            _configurationSource = null;
+            SystemBackdrop = appearance.Acrylic ? new DesktopAcrylicBackdrop() : null;
+            var alpha = appearance.Acrylic
+                ? (byte)255
+                : (byte)Math.Clamp((int)Math.Round(opacity * 255), 51, 255);
+            RootGrid.Background = new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
+            return;
+        }
+
+        RootGrid.Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+        _dispatcherQueueHelper.EnsureWindowsSystemDispatcherQueueController();
+
+        _configurationSource ??= new SystemBackdropConfiguration { IsInputActive = true };
+        SetConfigurationSourceTheme();
+
+        if (_acrylicController is null)
+        {
+            _acrylicController = new DesktopAcrylicController();
+            _acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            _acrylicController.SetSystemBackdropConfiguration(_configurationSource);
+        }
+
+        _acrylicController.TintColor = baseColor;
+        _acrylicController.FallbackColor = baseColor;
+        _acrylicController.TintOpacity = opacity;
+        _acrylicController.LuminosityOpacity = Math.Clamp(opacity + 0.05, 0.2, 1.0);
+        _acrylicController.Kind = AppearanceConfig.NormalizeAcrylicBlur(appearance.AcrylicBlur) == "soft"
+            ? DesktopAcrylicKind.Thin
+            : DesktopAcrylicKind.Default;
+    }
+
+    private bool IsDarkTheme()
+    {
+        if (Content is FrameworkElement { ActualTheme: ElementTheme.Light })
+        {
             return false;
         }
 
-        _dispatcherQueueHelper.EnsureWindowsSystemDispatcherQueueController();
-
-        _configurationSource = new SystemBackdropConfiguration
+        if (Content is FrameworkElement { ActualTheme: ElementTheme.Dark })
         {
-            IsInputActive = true,
-        };
-        SetConfigurationSourceTheme();
-
-        if (Content is FrameworkElement root)
-        {
-            root.ActualThemeChanged += (_, _) => SetConfigurationSourceTheme();
+            return true;
         }
 
-        _acrylicController = new DesktopAcrylicController();
-        _acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
-        _acrylicController.SetSystemBackdropConfiguration(_configurationSource);
-        return true;
+        return AppearanceConfig.NormalizeTheme(_configService.Config.Appearance?.Theme) != "light";
     }
 
     private void SetConfigurationSourceTheme()
@@ -444,9 +485,10 @@ public sealed partial class OverlayWindow : Window
         });
     }
 
-    private const int TileSpacing = 8;
-    private const int WindowPadX = 24;
-    private const int WindowPadBottom = 16;
+    private const int TileSpacing = OverlayMetrics.TileSpacing;
+    private const int GridPadX = OverlayMetrics.GridPadX;
+    private const int GridPadTop = OverlayMetrics.GridPadTop;
+    private const int GridPadBottom = OverlayMetrics.GridPadBottom;
     private const int OriginKeySize = 26;
 
     private void PositionOnCursorMonitor()
@@ -467,20 +509,29 @@ public sealed partial class OverlayWindow : Window
         var tileSize = AppearanceConfig.NormalizeTileSize(appearance.TileSize);
         var cols = Math.Max(1, layout.ColumnCount);
         var rows = Math.Max(1, layout.RowCount);
-        var contentWidthDip = (cols * tileSize) + ((cols - 1) * TileSpacing);
-        var contentHeightDip = (rows * tileSize) + ((rows - 1) * TileSpacing);
-        var menuHeight = MenuRow.ActualHeight > 0 ? MenuRow.ActualHeight : 40;
+        var tilesHeight = OverlayMetrics.TilesHeight(rows, tileSize);
+        var menuHeight = MenuRow.ActualHeight > 1 ? MenuRow.ActualHeight : 40;
+        var menuWidth = MeasureMenuWidth();
         var settingsHeight = 0.0;
         var settingsWidth = 0.0;
         if (_settingsOpen)
         {
-            settingsHeight = SettingsPane.ActualHeight > 0 ? SettingsPane.ActualHeight : 220;
-            settingsWidth = SettingsPane.ActualWidth > 0 ? SettingsPane.ActualWidth : 420;
+            settingsHeight = MeasureNaturalSize(SettingsPane).Height;
+            if (settingsHeight <= 1)
+            {
+                settingsHeight = 280;
+            }
+
+            settingsHeight += 8;
+            settingsWidth = MeasureNaturalSize(SettingsPane).Width + 24;
+            if (settingsWidth <= 25)
+            {
+                settingsWidth = 420;
+            }
         }
 
-        var widthDip = Math.Max(contentWidthDip, settingsWidth) + (WindowPadX * 2);
-        widthDip = Math.Max(widthDip, 320);
-        var heightDip = menuHeight + settingsHeight + contentHeightDip + 28 + WindowPadBottom;
+        var widthDip = OverlayMetrics.WindowWidth(cols, tileSize, (int)Math.Ceiling(menuWidth), (int)Math.Ceiling(settingsWidth));
+        var heightDip = menuHeight + settingsHeight + GridPadTop + tilesHeight + GridPadBottom;
 
         // Size for the monitor under the cursor — not the (often stale) HWND/XamlRoot DPI
         // after dock/undock or while the overlay is still hidden.
@@ -495,12 +546,32 @@ public sealed partial class OverlayWindow : Window
         }
 
         // Clamp so a bad DPI reading cannot create a tiny or huge window.
-        width = Math.Clamp(width, 200, work.Width);
-        height = Math.Clamp(height, 160, work.Height);
+        // Keep the floor low so a 2–3 column grid can still hug the tiles.
+        width = Math.Clamp(width, 80, work.Width);
+        height = Math.Clamp(height, 120, work.Height);
 
         var x = work.X + (work.Width - width) / 2;
         var y = work.Y + (work.Height - height) / 2;
         AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
+    }
+
+    private double MeasureMenuWidth()
+    {
+        const double pad = 16;
+        const double buttons = 32 + 4 + 32;
+        var menu = MeasureNaturalSize(OverlayMenu).Width;
+        if (menu <= 1)
+        {
+            menu = 168;
+        }
+
+        return pad + menu + 12 + buttons + pad;
+    }
+
+    private static Size MeasureNaturalSize(FrameworkElement element)
+    {
+        element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return element.DesiredSize;
     }
 
     private static double GetScaleForPoint(PointInt32 point)
@@ -528,6 +599,7 @@ public sealed partial class OverlayWindow : Window
     {
         var generation = ++_bindGeneration;
         var layout = _configService.GetLayout();
+        var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
         var itemMap = (grid.Items ?? [])
             .Where(i => !string.IsNullOrWhiteSpace(i.Key) && layout.IsValidKey(i.Key))
             .GroupBy(i => KeyboardLayout.NormalizeKey(i.Key))
@@ -550,7 +622,10 @@ public sealed partial class OverlayWindow : Window
 
                 if (item is not null)
                 {
-                    tile.Icon = await _iconResolver.ResolveAsync(item.Icon);
+                    tile.Icon = await _iconResolver.ResolveAsync(
+                        item.Icon,
+                        appearance.LucideColor,
+                        IsDarkTheme());
                 }
 
                 if (generation != _bindGeneration)
@@ -1037,6 +1112,8 @@ public sealed partial class OverlayWindow : Window
         }
 
         _themeService.Apply();
+        _iconResolver.ClearCache();
+        ApplyBackdrop();
         RebuildMenus();
         SyncSettingsPane();
         if (_isVisible)
@@ -1121,15 +1198,86 @@ public sealed partial class OverlayWindow : Window
             2 => AppearanceConfig.PillCornerRadius,
             _ => AppearanceConfig.RoundedCornerRadius,
         };
+        var blur = BlurBox.SelectedIndex == 1 ? "soft" : "standard";
         var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
         if (theme == AppearanceConfig.NormalizeTheme(appearance.Theme)
             && tileSize == AppearanceConfig.NormalizeTileSize(appearance.TileSize)
-            && corner == AppearanceConfig.NormalizeCornerRadius(appearance.CornerRadius))
+            && corner == AppearanceConfig.NormalizeCornerRadius(appearance.CornerRadius)
+            && blur == AppearanceConfig.NormalizeAcrylicBlur(appearance.AcrylicBlur))
         {
             return;
         }
 
-        _configService.UpdateAppearance(theme, tileSize, corner);
+        _configService.UpdateAppearance(theme, tileSize, corner, acrylicBlur: blur);
+    }
+
+    private void AcrylicSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressSettingsEvents)
+        {
+            return;
+        }
+
+        _configService.UpdateAppearance(acrylic: AcrylicSwitch.IsOn);
+    }
+
+    private void OpacitySlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_suppressSettingsEvents)
+        {
+            return;
+        }
+
+        var opacity = AppearanceConfig.NormalizeOpacity((int)Math.Round(OpacitySlider.Value));
+        OpacityLabel.Text = $"Opacity  {opacity}%";
+        _opacitySaveTimer?.Stop();
+        _opacitySaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _opacitySaveTimer.Tick += (_, _) =>
+        {
+            _opacitySaveTimer.Stop();
+            _configService.UpdateAppearance(opacity: opacity);
+        };
+        _opacitySaveTimer.Start();
+    }
+
+    private void BuildLucideColorSwatches(Panel host, string selectedId, Action<string> apply)
+    {
+        host.Children.Clear();
+        foreach (var swatch in LucidePalette.Swatches)
+        {
+            var captured = swatch;
+            var hex = string.IsNullOrEmpty(swatch.Hex)
+                ? (IsDarkTheme() ? "#F2F2F2" : "#2B2B2B")
+                : swatch.Hex;
+            var color = ParseHex(hex);
+            var button = new Button
+            {
+                Width = 18,
+                Height = 18,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(9),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(selectedId == swatch.Id ? 2 : 1),
+                BorderBrush = new SolidColorBrush(
+                    selectedId == swatch.Id
+                        ? Color.FromArgb(255, 96, 205, 255)
+                        : Color.FromArgb(80, 255, 255, 255)),
+                Tag = swatch.Id,
+            };
+            ToolTipService.SetToolTip(button, swatch.Label);
+            button.Click += (_, _) => apply(captured.Id);
+            host.Children.Add(button);
+        }
+    }
+
+    private static Color ParseHex(string hex)
+    {
+        if (!LucidePalette.TryParseRgb(hex, out var r, out var g, out var b))
+        {
+            return Color.FromArgb(255, 242, 242, 242);
+        }
+
+        return Color.FromArgb(255, r, g, b);
     }
 
     private void RebuildMenus()
@@ -1188,6 +1336,8 @@ public sealed partial class OverlayWindow : Window
         appearanceMenu.Items.Add(BuildThemeMenu(appearance));
         appearanceMenu.Items.Add(BuildTileSizeMenu(appearance));
         appearanceMenu.Items.Add(BuildCornerMenu(appearance));
+        appearanceMenu.Items.Add(BuildAcrylicMenu(appearance));
+        appearanceMenu.Items.Add(BuildLucideColorMenu(appearance));
         appearanceMenu.Items.Add(new MenuFlyoutSeparator());
         var more = new MenuFlyoutItem { Text = "More settings…" };
         more.Click += (_, _) => SetSettingsOpen(true);
@@ -1255,6 +1405,57 @@ public sealed partial class OverlayWindow : Window
         return menu;
     }
 
+    private MenuFlyoutSubItem BuildAcrylicMenu(AppearanceConfig appearance)
+    {
+        var menu = new MenuFlyoutSubItem { Text = "Acrylic" };
+        var enabled = new ToggleMenuFlyoutItem
+        {
+            Text = "Use acrylic",
+            IsChecked = appearance.Acrylic,
+        };
+        enabled.Click += (_, _) => _configService.UpdateAppearance(acrylic: enabled.IsChecked);
+        menu.Items.Add(enabled);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        AddAppearanceRadio(menu, "Opacity 50%", "AcrylicOpacity", appearance.Opacity <= 55, () =>
+            _configService.UpdateAppearance(opacity: 50));
+        AddAppearanceRadio(menu, "Opacity 80%", "AcrylicOpacity", appearance.Opacity is > 55 and < 90, () =>
+            _configService.UpdateAppearance(opacity: 80));
+        AddAppearanceRadio(menu, "Opacity 100%", "AcrylicOpacity", appearance.Opacity >= 90, () =>
+            _configService.UpdateAppearance(opacity: 100));
+        menu.Items.Add(new MenuFlyoutSeparator());
+        AddAppearanceRadio(
+            menu,
+            "Standard blur",
+            "AcrylicBlur",
+            AppearanceConfig.NormalizeAcrylicBlur(appearance.AcrylicBlur) != "soft",
+            () => _configService.UpdateAppearance(acrylicBlur: "standard"));
+        AddAppearanceRadio(
+            menu,
+            "Soft blur",
+            "AcrylicBlur",
+            AppearanceConfig.NormalizeAcrylicBlur(appearance.AcrylicBlur) == "soft",
+            () => _configService.UpdateAppearance(acrylicBlur: "soft"));
+        return menu;
+    }
+
+    private MenuFlyoutSubItem BuildLucideColorMenu(AppearanceConfig appearance)
+    {
+        var menu = new MenuFlyoutSubItem { Text = "Lucide color" };
+        var selected = LucidePalette.Normalize(appearance.LucideColor);
+        foreach (var swatch in LucidePalette.Swatches)
+        {
+            var captured = swatch;
+            AddAppearanceRadio(
+                menu,
+                swatch.Label,
+                "LucideColorChoice",
+                selected == swatch.Id,
+                () => _configService.UpdateAppearance(lucideColor: captured.Id));
+        }
+
+        return menu;
+    }
+
     private static void AddAppearanceRadio(
         MenuFlyoutSubItem menu,
         string text,
@@ -1308,6 +1509,15 @@ public sealed partial class OverlayWindow : Window
                 AppearanceConfig.PillCornerRadius => 2,
                 _ => 1,
             };
+            AcrylicSwitch.IsOn = appearance.Acrylic;
+            OpacitySlider.Value = AppearanceConfig.NormalizeOpacity(appearance.Opacity);
+            OpacityLabel.Text = $"Opacity  {AppearanceConfig.NormalizeOpacity(appearance.Opacity)}%";
+            BlurBox.IsEnabled = appearance.Acrylic;
+            BlurBox.SelectedIndex = AppearanceConfig.NormalizeAcrylicBlur(appearance.AcrylicBlur) == "soft" ? 1 : 0;
+            BuildLucideColorSwatches(
+                LucideDefaultColorHost,
+                LucidePalette.Normalize(appearance.LucideColor),
+                id => _configService.UpdateAppearance(lucideColor: id));
             OriginHint.Text = $"Top-left is {layout.StartKey}. Highlight shows the {layout.RequestedColumns}×{layout.RequestedRows} slice.";
             if (_settingsOpen)
             {

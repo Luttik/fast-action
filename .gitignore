@@ -40,5 +40,8 @@ Desktop.ini
 .env.*
 !.env.example
 
+# Playwright MCP / local capture scratch
+.playwright-mcp/
+
 # Local wingetcreate output (lives in microsoft/winget-pkgs, not here)
 manifests/

@@ -10,6 +10,8 @@
   <ItemGroup>
     <Compile Include="..\FastAction\Models\KeyboardLayout.cs" Link="KeyboardLayout.cs" />
     <Compile Include="..\FastAction\Models\AppConfig.cs" Link="AppConfig.cs" />
+    <Compile Include="..\FastAction\Models\LucidePalette.cs" Link="LucidePalette.cs" />
+    <Compile Include="..\FastAction\Models\OverlayMetrics.cs" Link="OverlayMetrics.cs" />
   </ItemGroup>
 
   <ItemGroup>

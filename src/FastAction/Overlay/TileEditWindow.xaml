@@ -95,6 +95,18 @@
                         Visibility="Collapsed" />
                 </Grid>
 
+                <StackPanel
+                    x:Name="LucideColorPanel"
+                    Spacing="6">
+                    <TextBlock
+                        FontSize="12"
+                        Text="Lucide color" />
+                    <StackPanel
+                        x:Name="LucideColorHost"
+                        Orientation="Horizontal"
+                        Spacing="6" />
+                </StackPanel>
+
                 <ComboBox
                     x:Name="ActionTypeBox"
                     HorizontalAlignment="Stretch"
