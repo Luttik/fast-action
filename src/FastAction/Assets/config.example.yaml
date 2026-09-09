@@ -4,6 +4,14 @@ hotkey:
 rootGridId: home
 editOnRightClick: true
 runOnStartup: true
+layout:
+  startKey: "1"    # top-left key of the overlay (1, Q, A, Z, …)
+  columns: 4
+  rows: 4
+appearance:
+  theme: system    # system | light | dark
+  tileSize: 88     # 72 compact, 88 default, 112 large
+  cornerRadius: 12 # 4 sharp, 12 rounded, 22 pill
 grids:
   - id: home
     title: Home
