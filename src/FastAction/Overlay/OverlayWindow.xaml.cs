@@ -599,7 +599,6 @@ public sealed partial class OverlayWindow : Window
     {
         var generation = ++_bindGeneration;
         var layout = _configService.GetLayout();
-        var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
         var itemMap = (grid.Items ?? [])
             .Where(i => !string.IsNullOrWhiteSpace(i.Key) && layout.IsValidKey(i.Key))
             .GroupBy(i => KeyboardLayout.NormalizeKey(i.Key))
@@ -622,10 +621,7 @@ public sealed partial class OverlayWindow : Window
 
                 if (item is not null)
                 {
-                    tile.Icon = await _iconResolver.ResolveAsync(
-                        item.Icon,
-                        appearance.LucideColor,
-                        IsDarkTheme());
+                    tile.Icon = await _iconResolver.ResolveAsync(item.Icon, darkTheme: IsDarkTheme());
                 }
 
                 if (generation != _bindGeneration)
@@ -1240,46 +1236,6 @@ public sealed partial class OverlayWindow : Window
         _opacitySaveTimer.Start();
     }
 
-    private void BuildLucideColorSwatches(Panel host, string selectedId, Action<string> apply)
-    {
-        host.Children.Clear();
-        foreach (var swatch in LucidePalette.Swatches)
-        {
-            var captured = swatch;
-            var hex = string.IsNullOrEmpty(swatch.Hex)
-                ? (IsDarkTheme() ? "#F2F2F2" : "#2B2B2B")
-                : swatch.Hex;
-            var color = ParseHex(hex);
-            var button = new Button
-            {
-                Width = 18,
-                Height = 18,
-                Padding = new Thickness(0),
-                CornerRadius = new CornerRadius(9),
-                Background = new SolidColorBrush(color),
-                BorderThickness = new Thickness(selectedId == swatch.Id ? 2 : 1),
-                BorderBrush = new SolidColorBrush(
-                    selectedId == swatch.Id
-                        ? Color.FromArgb(255, 96, 205, 255)
-                        : Color.FromArgb(80, 255, 255, 255)),
-                Tag = swatch.Id,
-            };
-            ToolTipService.SetToolTip(button, swatch.Label);
-            button.Click += (_, _) => apply(captured.Id);
-            host.Children.Add(button);
-        }
-    }
-
-    private static Color ParseHex(string hex)
-    {
-        if (!LucidePalette.TryParseRgb(hex, out var r, out var g, out var b))
-        {
-            return Color.FromArgb(255, 242, 242, 242);
-        }
-
-        return Color.FromArgb(255, r, g, b);
-    }
-
     private void RebuildMenus()
     {
         OverlayMenu.Items.Clear();
@@ -1337,7 +1293,6 @@ public sealed partial class OverlayWindow : Window
         appearanceMenu.Items.Add(BuildTileSizeMenu(appearance));
         appearanceMenu.Items.Add(BuildCornerMenu(appearance));
         appearanceMenu.Items.Add(BuildAcrylicMenu(appearance));
-        appearanceMenu.Items.Add(BuildLucideColorMenu(appearance));
         appearanceMenu.Items.Add(new MenuFlyoutSeparator());
         var more = new MenuFlyoutItem { Text = "More settings…" };
         more.Click += (_, _) => SetSettingsOpen(true);
@@ -1438,24 +1393,6 @@ public sealed partial class OverlayWindow : Window
         return menu;
     }
 
-    private MenuFlyoutSubItem BuildLucideColorMenu(AppearanceConfig appearance)
-    {
-        var menu = new MenuFlyoutSubItem { Text = "Lucide color" };
-        var selected = LucidePalette.Normalize(appearance.LucideColor);
-        foreach (var swatch in LucidePalette.Swatches)
-        {
-            var captured = swatch;
-            AddAppearanceRadio(
-                menu,
-                swatch.Label,
-                "LucideColorChoice",
-                selected == swatch.Id,
-                () => _configService.UpdateAppearance(lucideColor: captured.Id));
-        }
-
-        return menu;
-    }
-
     private static void AddAppearanceRadio(
         MenuFlyoutSubItem menu,
         string text,
@@ -1514,10 +1451,6 @@ public sealed partial class OverlayWindow : Window
             OpacityLabel.Text = $"Opacity  {AppearanceConfig.NormalizeOpacity(appearance.Opacity)}%";
             BlurBox.IsEnabled = appearance.Acrylic;
             BlurBox.SelectedIndex = AppearanceConfig.NormalizeAcrylicBlur(appearance.AcrylicBlur) == "soft" ? 1 : 0;
-            BuildLucideColorSwatches(
-                LucideDefaultColorHost,
-                LucidePalette.Normalize(appearance.LucideColor),
-                id => _configService.UpdateAppearance(lucideColor: id));
             OriginHint.Text = $"Top-left is {layout.StartKey}. Highlight shows the {layout.RequestedColumns}×{layout.RequestedRows} slice.";
             if (_settingsOpen)
             {

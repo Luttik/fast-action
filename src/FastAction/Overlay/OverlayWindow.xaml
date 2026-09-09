@@ -183,14 +183,6 @@
                             <x:String>Standard</x:String>
                             <x:String>Soft</x:String>
                         </ComboBox>
-                        <TextBlock
-                            Margin="0,8,0,0"
-                            FontSize="11"
-                            Text="Lucide color" />
-                        <StackPanel
-                            x:Name="LucideDefaultColorHost"
-                            Orientation="Horizontal"
-                            Spacing="4" />
                     </StackPanel>
                 </Grid>
             </StackPanel>

@@ -229,8 +229,7 @@ public sealed class ConfigService : IDisposable
         int? cornerRadius = null,
         bool? acrylic = null,
         int? opacity = null,
-        string? acrylicBlur = null,
-        string? lucideColor = null)
+        string? acrylicBlur = null)
     {
         lock (_lock)
         {
@@ -263,11 +262,6 @@ public sealed class ConfigService : IDisposable
             if (acrylicBlur is not null)
             {
                 _config.Appearance.AcrylicBlur = AppearanceConfig.NormalizeAcrylicBlur(acrylicBlur);
-            }
-
-            if (lucideColor is not null)
-            {
-                _config.Appearance.LucideColor = LucidePalette.Normalize(lucideColor);
             }
 
             SaveUnlocked();
@@ -390,7 +384,6 @@ public sealed class ConfigService : IDisposable
         config.Appearance.CornerRadius = AppearanceConfig.NormalizeCornerRadius(config.Appearance.CornerRadius);
         config.Appearance.Opacity = AppearanceConfig.NormalizeOpacity(config.Appearance.Opacity);
         config.Appearance.AcrylicBlur = AppearanceConfig.NormalizeAcrylicBlur(config.Appearance.AcrylicBlur);
-        config.Appearance.LucideColor = LucidePalette.Normalize(config.Appearance.LucideColor);
 
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var grid in config.Grids)

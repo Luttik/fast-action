@@ -11,11 +11,12 @@ MOCK_DIR = ROOT / "docs" / "overlay-mock"
 OUT_DIR = ROOT / "docs" / "screenshots"
 PORT = 8766
 
-SHOTS: list[tuple[str, str, bool]] = [
-    ("overlay.html?view=overlay", "overlay-4x4.png", True),
-    ("overlay.html?view=overlay&start=Q&cols=3&rows=3", "overlay-3x3.png", True),
-    ("overlay.html?view=settings", "overlay-settings.png", True),
-    ("overlay.html?view=grid-menu", "overlay-grid-menu.png", False),
+SHOTS: list[tuple[str, str, str]] = [
+    ("overlay.html?view=overlay", "overlay-4x4.png", "#overlay"),
+    ("overlay.html?view=overlay&start=Q&cols=3&rows=3", "overlay-3x3.png", "#overlay"),
+    ("overlay.html?view=settings", "overlay-settings.png", "#overlay"),
+    ("overlay.html?view=grid-menu", "overlay-grid-menu.png", ""),
+    ("tile-edit.html", "overlay-tile-edit.png", "#editor"),
 ]
 
 
@@ -62,12 +63,12 @@ def main() -> None:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             page = browser.new_page(viewport={"width": 1100, "height": 900})
-            for query, name, clip_overlay in SHOTS:
+            for query, name, clip in SHOTS:
                 page.goto(f"http://127.0.0.1:{PORT}/{query}", wait_until="domcontentloaded")
                 page.wait_for_timeout(250)
                 dest = OUT_DIR / name
-                if clip_overlay:
-                    page.locator("#overlay").screenshot(path=str(dest), type="png")
+                if clip:
+                    page.locator(clip).screenshot(path=str(dest), type="png")
                 else:
                     overlay = page.locator("#overlay").bounding_box()
                     flyout = page.locator("#sizeFly").bounding_box()

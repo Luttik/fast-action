@@ -328,8 +328,6 @@
           <div>
             <div class="tiny">Blur</div>
             <select class="combo"><option selected>Standard</option><option>Soft</option></select>
-            <div class="tiny" style="margin-top:8px">Lucide color</div>
-            <div class="swatches" id="swatches"></div>
           </div>
         </div>
       </div>
@@ -428,16 +426,6 @@
       `Top-left is ${start}. Highlight shows the ${cols}×${rows} slice.`;
     document.getElementById("colsBox").value = String(cols);
     document.getElementById("rowsBox").value = String(rows);
-    const swatches = document.getElementById("swatches");
-    if (swatches) {
-      const palette = ["#F2F2F2","#9AA4B2","#60CDFF","#6CCB5F","#F8D347","#FF8C42","#FF7AA2","#B4A0FF","#FF6B6B"];
-      palette.forEach((hex, i) => {
-        const d = document.createElement("div");
-        d.className = "swatch" + (i === 0 ? " selected" : "");
-        d.style.background = hex;
-        swatches.appendChild(d);
-      });
-    }
 
     if (view === "settings") document.getElementById("settings").hidden = false;
     if (view === "grid-menu") {
