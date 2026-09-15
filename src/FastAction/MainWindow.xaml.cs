@@ -10,16 +10,20 @@ public sealed partial class MainWindow : Window
 {
     private readonly ConfigService _configService;
     private readonly HotkeyService _hotkeyService;
-    private readonly StartupService _startupService;
+    private readonly ThemeService? _themeService;
     private OverlayWindow? _overlay;
     private TaskbarIcon? _trayIcon;
     private ToggleMenuFlyoutItem? _startupMenuItem;
+    private System.Drawing.Icon? _ownedTrayIcon;
 
-    public MainWindow(ConfigService configService, HotkeyService hotkeyService, StartupService startupService)
+    public MainWindow(
+        ConfigService configService,
+        HotkeyService hotkeyService,
+        ThemeService? themeService = null)
     {
         _configService = configService;
         _hotkeyService = hotkeyService;
-        _startupService = startupService;
+        _themeService = themeService;
 
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
@@ -37,6 +41,14 @@ public sealed partial class MainWindow : Window
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1, 1));
         Activated += OnActivated;
         SetupTrayIcon();
+
+        if (_themeService is not null)
+        {
+            _themeService.Attach(this);
+            ApplyTrayIconForTheme(_themeService.IsDark);
+            _themeService.DarkModeChanged += (_, isDark) =>
+                DispatcherQueue.TryEnqueue(() => ApplyTrayIconForTheme(isDark));
+        }
     }
 
     private void SetupTrayIcon()
@@ -68,7 +80,7 @@ public sealed partial class MainWindow : Window
             var enabled = _startupMenuItem.IsChecked;
             try
             {
-                _startupService.SetEnabled(enabled);
+                StartupService.SetEnabled(enabled);
                 _configService.SetRunOnStartup(enabled);
             }
             catch (Exception ex)
@@ -96,23 +108,62 @@ public sealed partial class MainWindow : Window
             NoLeftClickDelay = true,
         };
 
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-        var trayPng = Path.Combine(AppContext.BaseDirectory, "Assets", "Brand", "tray-32.png");
-        if (File.Exists(iconPath))
-        {
-            // Prefer multi-size ICO so the shell picks a crisp tray size.
-            _trayIcon.Icon = new System.Drawing.Icon(iconPath, 32, 32);
-        }
-        else if (File.Exists(trayPng))
-        {
-            using var bitmap = new System.Drawing.Bitmap(trayPng);
-            _trayIcon.Icon = System.Drawing.Icon.FromHandle(bitmap.GetHicon());
-        }
+        ApplyTrayIconForTheme(_themeService?.IsDark ?? false);
 
         _trayIcon.LeftClickCommand = new SimpleCommand(ShowOverlay);
         _trayIcon.ForceCreate();
         TrayHost.Children.Add(_trayIcon);
     }
+
+    private void ApplyTrayIconForTheme(bool isDark)
+    {
+        if (_trayIcon is null)
+        {
+            return;
+        }
+
+        var brandDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Brand");
+        // Dark Windows theme → light/inverted tray mark; light theme → dark mark.
+        var preferredPng = Path.Combine(brandDir, isDark ? "tray-32-light.png" : "tray-32.png");
+        var fallbackPng = Path.Combine(brandDir, "tray-32.png");
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+
+        System.Drawing.Icon? next = null;
+        try
+        {
+            var png = File.Exists(preferredPng)
+                ? preferredPng
+                : File.Exists(fallbackPng) ? fallbackPng : null;
+            if (png is not null)
+            {
+                using var bitmap = new System.Drawing.Bitmap(png);
+                var handle = bitmap.GetHicon();
+                next = System.Drawing.Icon.FromHandle(handle).Clone() as System.Drawing.Icon;
+                DestroyIcon(handle);
+            }
+            else if (File.Exists(iconPath))
+            {
+                next = new System.Drawing.Icon(iconPath, 32, 32);
+            }
+        }
+        catch
+        {
+            next = null;
+        }
+
+        if (next is null)
+        {
+            return;
+        }
+
+        var previous = _ownedTrayIcon;
+        _ownedTrayIcon = next;
+        _trayIcon.Icon = next;
+        previous?.Dispose();
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     private static MenuFlyoutItem CreateMenuItem(string text, RoutedEventHandler handler)
     {
@@ -133,7 +184,6 @@ public sealed partial class MainWindow : Window
 
     public void InitializeHotkeys()
     {
-        _hotkeyService.Attach(this);
         _hotkeyService.HotkeyPressed += (_, _) => ShowOverlay();
         ApplyHotkeyFromConfig();
         _configService.ConfigChanged += (_, _) =>
@@ -173,7 +223,7 @@ public sealed partial class MainWindow : Window
         var enabled = _configService.Config.RunOnStartup;
         try
         {
-            _startupService.SetEnabled(enabled);
+            StartupService.SetEnabled(enabled);
         }
         catch (Exception ex)
         {

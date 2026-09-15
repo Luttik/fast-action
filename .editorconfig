@@ -59,3 +59,7 @@ dotnet_naming_rule.interface_should_be_prefixed_with_i.style = prefix_i_style
 dotnet_naming_symbols.interface_symbol.applicable_kinds = interface
 dotnet_naming_style.prefix_i_style.required_prefix = I
 dotnet_naming_style.prefix_i_style.capitalization = pascal_case
+
+# WinUI Application/Window types own long-lived resources disposed on Closed/Exit.
+# Microsoft guidance still prefers IDisposable; for tray host windows this is noisy.
+dotnet_diagnostic.CA1001.severity = suggestion

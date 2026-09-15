@@ -36,12 +36,6 @@ public sealed class HotkeyService : IDisposable
         _hookProcHandle = GCHandle.Alloc(_hookProc);
     }
 
-    public void Attach(Microsoft.UI.Xaml.Window window)
-    {
-        // Hook is process-wide; window handle is unused but kept for call-site compatibility.
-        _ = window;
-    }
-
     public void Apply(HotkeyConfig config)
     {
         Unregister();

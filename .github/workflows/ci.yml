@@ -30,6 +30,52 @@ jobs:
       - name: Build
         run: dotnet build src/FastAction/FastAction.csproj -c Release -p:Platform=${{ matrix.platform }} -r win-${{ matrix.platform }} --no-restore
 
+  microsoft-compliance:
+    name: Microsoft compliance
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps
+        run: pip install -r scripts/requirements.txt
+
+      - name: Restore
+        run: dotnet restore src/FastAction/FastAction.csproj -p:Platform=x64 -r win-x64
+
+      - name: Build with analyzers as errors
+        # Matches Microsoft .NET engineering practice: CA/IDE findings fail the build.
+        run: >
+          dotnet build src/FastAction/FastAction.csproj
+          -c Release
+          -p:Platform=x64
+          -r win-x64
+          --no-restore
+          -p:TreatWarningsAsErrors=true
+          -p:EnforceCodeStyleInBuild=true
+          -warnaserror
+
+      - name: Vulnerable NuGet packages
+        shell: pwsh
+        run: |
+          $output = dotnet list src/FastAction/FastAction.csproj package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $output
+          if ($output -match "(?i)has the following vulnerable packages") {
+            throw "Vulnerable NuGet package(s) detected. Update dependencies before merging."
+          }
+
+      - name: Brand icon transparency (WinGet / unplated)
+        run: python scripts/verify_brand_icons.py
+
   dotnet-format:
     name: Lint (dotnet format)
     runs-on: windows-latest

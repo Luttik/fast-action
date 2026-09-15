@@ -13,7 +13,7 @@ public sealed class StartupService
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "FastAction";
 
-    public bool IsEnabled()
+    public static bool IsEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
         var value = key?.GetValue(ValueName) as string;
@@ -22,7 +22,7 @@ public sealed class StartupService
     }
 
     /// <summary>Idempotently syncs the Run key with the desired state and the current executable path.</summary>
-    public void SetEnabled(bool enabled)
+    public static void SetEnabled(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true)
             ?? throw new InvalidOperationException("Could not open the startup registry key.");
