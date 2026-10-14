@@ -157,13 +157,15 @@ public sealed class ConfigService : IDisposable
     {
         ArgumentNullException.ThrowIfNull(item);
         item.Key = KeyboardLayout.NormalizeKey(item.Key);
-        if (!KeyboardLayout.IsValidKey(item.Key))
-        {
-            throw new InvalidOperationException($"Unsupported key '{item.Key}'.");
-        }
 
         lock (_lock)
         {
+            var layout = KeyboardLayout.From(_config.Layout);
+            if (!layout.IsValidKey(item.Key))
+            {
+                throw new InvalidOperationException($"Unsupported key '{item.Key}'.");
+            }
+
             var grid = _config.Grids.FirstOrDefault(g =>
                 string.Equals(g.Id, gridId, StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidOperationException($"Grid '{gridId}' was not found.");
@@ -192,6 +194,76 @@ public sealed class ConfigService : IDisposable
         lock (_lock)
         {
             _config.RunOnStartup = enabled;
+            SaveUnlocked();
+        }
+
+        ConfigChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public KeyboardLayout GetLayout()
+    {
+        lock (_lock)
+        {
+            return KeyboardLayout.From(_config.Layout);
+        }
+    }
+
+    public void UpdateLayout(string startKey, int columns, int rows)
+    {
+        var built = KeyboardLayout.Build(startKey, columns, rows);
+        lock (_lock)
+        {
+            _config.Layout ??= new LayoutConfig();
+            _config.Layout.StartKey = built.StartKey;
+            _config.Layout.Columns = built.RequestedColumns;
+            _config.Layout.Rows = built.RequestedRows;
+            SaveUnlocked();
+        }
+
+        ConfigChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateAppearance(
+        string? theme = null,
+        int? tileSize = null,
+        int? cornerRadius = null,
+        bool? acrylic = null,
+        int? opacity = null,
+        string? acrylicBlur = null)
+    {
+        lock (_lock)
+        {
+            _config.Appearance ??= new AppearanceConfig();
+            if (theme is not null)
+            {
+                _config.Appearance.Theme = AppearanceConfig.NormalizeTheme(theme);
+            }
+
+            if (tileSize is not null)
+            {
+                _config.Appearance.TileSize = AppearanceConfig.NormalizeTileSize(tileSize.Value);
+            }
+
+            if (cornerRadius is not null)
+            {
+                _config.Appearance.CornerRadius = AppearanceConfig.NormalizeCornerRadius(cornerRadius.Value);
+            }
+
+            if (acrylic is not null)
+            {
+                _config.Appearance.Acrylic = acrylic.Value;
+            }
+
+            if (opacity is not null)
+            {
+                _config.Appearance.Opacity = AppearanceConfig.NormalizeOpacity(opacity.Value);
+            }
+
+            if (acrylicBlur is not null)
+            {
+                _config.Appearance.AcrylicBlur = AppearanceConfig.NormalizeAcrylicBlur(acrylicBlur);
+            }
+
             SaveUnlocked();
         }
 
@@ -301,6 +373,18 @@ public sealed class ConfigService : IDisposable
             throw new InvalidOperationException("Config must define at least one grid.");
         }
 
+        config.Layout ??= new LayoutConfig();
+        config.Appearance ??= new AppearanceConfig();
+        var resolved = KeyboardLayout.From(config.Layout);
+        config.Layout.StartKey = resolved.StartKey;
+        config.Layout.Columns = Math.Clamp(config.Layout.Columns, KeyboardLayout.MinSize, KeyboardLayout.MaxColumns);
+        config.Layout.Rows = Math.Clamp(config.Layout.Rows, KeyboardLayout.MinSize, KeyboardLayout.MaxRows);
+        config.Appearance.Theme = AppearanceConfig.NormalizeTheme(config.Appearance.Theme);
+        config.Appearance.TileSize = AppearanceConfig.NormalizeTileSize(config.Appearance.TileSize);
+        config.Appearance.CornerRadius = AppearanceConfig.NormalizeCornerRadius(config.Appearance.CornerRadius);
+        config.Appearance.Opacity = AppearanceConfig.NormalizeOpacity(config.Appearance.Opacity);
+        config.Appearance.AcrylicBlur = AppearanceConfig.NormalizeAcrylicBlur(config.Appearance.AcrylicBlur);
+
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var grid in config.Grids)
         {
@@ -332,9 +416,14 @@ public sealed class ConfigService : IDisposable
                     item.Icon.Type = "lucide";
                 }
 
-                if (!KeyboardLayout.IsValidKey(key))
+                if (!string.IsNullOrWhiteSpace(item.Icon.Color))
                 {
-                    Debug.WriteLine($"Ignoring unsupported key '{key}' in grid '{grid.Id}'.");
+                    item.Icon.Color = LucidePalette.Normalize(item.Icon.Color);
+                }
+
+                if (!resolved.IsValidKey(key))
+                {
+                    Debug.WriteLine($"Ignoring key '{key}' in grid '{grid.Id}' (outside current layout).");
                     continue;
                 }
 

@@ -1,3 +1,4 @@
+using FastAction.Models;
 using Microsoft.UI.Xaml;
 using Windows.UI.ViewManagement;
 
@@ -7,6 +8,7 @@ public sealed class ThemeService : IDisposable
 {
     private readonly UISettings _uiSettings = new();
     private readonly List<WeakReference<Window>> _windows = [];
+    private Func<string>? _themeProvider;
     private bool _isDark;
     private bool _listening;
 
@@ -14,10 +16,14 @@ public sealed class ThemeService : IDisposable
 
     public event EventHandler<bool>? DarkModeChanged;
 
-    public void Attach(Window window)
+    public void Attach(Window window, Func<string>? themeProvider = null)
     {
         _windows.RemoveAll(w => !w.TryGetTarget(out _));
         _windows.Add(new WeakReference<Window>(window));
+        if (themeProvider is not null)
+        {
+            _themeProvider = themeProvider;
+        }
 
         if (!_listening)
         {
@@ -30,12 +36,11 @@ public sealed class ThemeService : IDisposable
 
     public void Apply()
     {
-        var background = _uiSettings.GetColorValue(UIColorType.Background);
-        var isDark = background.R < 128 && background.G < 128 && background.B < 128;
-        if (isDark != _isDark)
+        var systemDark = DetectSystemDark();
+        if (systemDark != _isDark)
         {
-            _isDark = isDark;
-            DarkModeChanged?.Invoke(this, isDark);
+            _isDark = systemDark;
+            DarkModeChanged?.Invoke(this, systemDark);
         }
 
         foreach (var weak in _windows.ToArray())
@@ -45,8 +50,25 @@ public sealed class ThemeService : IDisposable
                 continue;
             }
 
-            root.RequestedTheme = isDark ? ElementTheme.Dark : ElementTheme.Light;
+            root.RequestedTheme = RequestedTheme();
         }
+    }
+
+    private ElementTheme RequestedTheme()
+    {
+        var preference = AppearanceConfig.NormalizeTheme(_themeProvider?.Invoke());
+        return preference switch
+        {
+            "light" => ElementTheme.Light,
+            "dark" => ElementTheme.Dark,
+            _ => _isDark ? ElementTheme.Dark : ElementTheme.Light,
+        };
+    }
+
+    private bool DetectSystemDark()
+    {
+        var background = _uiSettings.GetColorValue(UIColorType.Background);
+        return background.R < 128 && background.G < 128 && background.B < 128;
     }
 
     private void OnColorValuesChanged(UISettings sender, object args)
