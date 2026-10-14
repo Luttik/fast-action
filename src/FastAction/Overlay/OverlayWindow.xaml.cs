@@ -742,6 +742,9 @@ public sealed partial class OverlayWindow : Window
             Tag = tile,
             IsEnabled = true,
             Opacity = tile.IsEmpty ? 0.35 : 1,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderBrush = null,
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(corner),
             Content = content,
         };

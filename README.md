@@ -156,7 +156,7 @@ The overlay is a rectangular slice of the US QWERTY map. `layout.startKey` is th
 
 `startKey: Q` with 3×3 is the letter core (`Q W E` / `A S D` / `Z X C`). Keys outside the current slice stay in `config.yaml` and come back if you enlarge the grid later.
 
-The overlay **Grid** and **Appearance** menus (and the gear on the overlay) write these values live. **Appearance → Acrylic** toggles Desktop Acrylic, sets opacity (20–100, like Windows Terminal), and chooses standard vs soft blur. Right-click a tile to edit that shortcut; **Lucide color** tints that tile’s stroke icon (`icon.color`). Empty slots stay blank. Esc pops a nested grid or closes at root. Backspace pops when nested.
+The overlay **Grid** and **Appearance** menus (and the gear on the overlay) write these values live. **Appearance → Acrylic** toggles Desktop Acrylic, sets opacity (20–100, like Windows Terminal), and chooses standard vs soft blur. Right-click a tile to edit that shortcut; **Lucide color** tints that tile’s stroke icon (`icon.color`). Empty slots stay blank. Esc closes the overlay. Backspace pops a nested grid.
 
 Values with colons (protocol handlers like `ms-settings:`) must be quoted in YAML:
 
