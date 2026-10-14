@@ -691,7 +691,7 @@ public sealed partial class OverlayWindow : Window
         }
     }
 
-    private FrameworkElement CreateTileButton(ActionTileViewModel tile)
+    private Grid CreateTileButton(ActionTileViewModel tile)
     {
         var appearance = _configService.Config.Appearance ?? new AppearanceConfig();
         var tileSize = AppearanceConfig.NormalizeTileSize(appearance.TileSize);

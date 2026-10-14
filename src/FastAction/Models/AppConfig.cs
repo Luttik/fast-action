@@ -82,7 +82,9 @@ public sealed class AppearanceConfig
     public static int NormalizeOpacity(int opacity) => Math.Clamp(opacity, 20, 100);
 
     public static string NormalizeAcrylicBlur(string? blur) =>
-        (blur ?? "standard").Trim().ToLowerInvariant() == "soft" ? "soft" : "standard";
+        string.Equals((blur ?? "standard").Trim(), "soft", StringComparison.OrdinalIgnoreCase)
+            ? "soft"
+            : "standard";
 }
 
 public sealed class HotkeyConfig
